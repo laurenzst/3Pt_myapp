@@ -3,41 +3,37 @@ import { mongodbAdapter } from "better-auth/adapters/mongodb";
 import { BETTER_AUTH_SECRET } from "$env/static/private";
 import { db } from "$lib/mongodb.server.js";
 
-// Persist rate-limit counters in MongoDB so they survive across serverless
-// function instances (Netlify). TTL index on `expiresAt` handles cleanup.
-const kv = db.collection("kvStore");
-kv.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch(() => {});
+// Rate-limit counters stored in MongoDB so they persist across serverless
+// instances. TTL index cleans up expired entries automatically.
+const rlCol = db.collection("rateLimit");
+rlCol.createIndex({ expiresAt: 1 }, { expireAfterSeconds: 0 }).catch(() => {});
 
-const secondaryStorage = {
+const rateLimitStorage = {
   get: async (key) => {
-    const doc = await kv.findOne({ _id: key });
-    return doc?.value ?? null;
+    const doc = await rlCol.findOne({ _id: key });
+    return doc?.data ?? null;
   },
-  set: async (key, value, ttl) => {
-    const expiresAt = ttl ? new Date(Date.now() + ttl * 1000) : null;
-    await kv.updateOne(
+  set: async (key, value) => {
+    // Keep entries for 60s so MongoDB TTL has time to clean them up;
+    // BetterAuth's own shouldRateLimit() checks the timestamps.
+    const expiresAt = new Date(Date.now() + 60_000);
+    await rlCol.updateOne(
       { _id: key },
-      { $set: { value, ...(expiresAt && { expiresAt }) } },
+      { $set: { data: value, expiresAt } },
       { upsert: true }
     );
-  },
-  delete: async (key) => {
-    await kv.deleteOne({ _id: key });
   },
 };
 
 export const auth = betterAuth({
   secret: BETTER_AUTH_SECRET,
   database: mongodbAdapter(db),
-  secondaryStorage,
-  session: {
-    storeSessionInDatabase: true,
-  },
   emailAndPassword: {
     enabled: true,
   },
   rateLimit: {
     window: 10,
     max: 20,
+    customStorage: rateLimitStorage,
   },
 });

@@ -71,21 +71,15 @@ export const actions = {
     return { pwSuccess: true };
   },
 
-  revokeSession: async ({ request, locals }) => {
-    const userId = locals.user.id;
+  revokeSession: async ({ request }) => {
     const data = await request.formData();
     const token = data.get("token")?.toString();
     if (token) {
-      await db.collection("session").deleteOne({ token, userId: new ObjectId(userId) });
+      await auth.api.revokeSession({ body: { token }, headers: request.headers });
     }
   },
 
-  revokeOtherSessions: async ({ locals }) => {
-    const userId = locals.user.id;
-    const currentToken = locals.session?.token;
-    await db.collection("session").deleteMany({
-      userId: new ObjectId(userId),
-      token: { $ne: currentToken },
-    });
+  revokeOtherSessions: async ({ request }) => {
+    await auth.api.revokeOtherSessions({ headers: request.headers });
   },
 };
