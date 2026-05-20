@@ -1,6 +1,8 @@
 <script>
   import { enhance } from "$app/forms";
   import { invalidateAll } from "$app/navigation";
+  import { authClient } from "$lib/auth-client.js";
+  import QRCode from "qrcode";
 
   let { data, form } = $props();
 
@@ -12,12 +14,132 @@
   let profileSuccess = $state(false);
   let profileError = $state("");
 
-  // ── Security ─────────────────────────────────────────────
+  // ── Security / Password ───────────────────────────────────
   let securityLoading = $state(false);
   let pwFormVisible = $state(false);
 
   let pwError = $derived(form?.pwError ?? "");
   let pwSuccess = $derived(form?.pwSuccess ?? false);
+
+  // ── 2FA Setup Wizard ─────────────────────────────────────
+  // step: "idle" | "password" | "qr" | "verify" | "backup" | "done"
+  let tfaStep = $state("idle");
+  let tfaPassword = $state("");
+  let tfaPasswordError = $state("");
+  let tfaPasswordLoading = $state(false);
+  let tfaTotpUri = $state("");
+  let tfaBackupCodes = $state([]);
+  let tfaQrDataUrl = $state("");
+  let tfaManualSecret = $state("");
+  let tfaShowManual = $state(false);
+  let tfaVerifyCode = $state("");
+  let tfaVerifyError = $state("");
+  let tfaVerifyLoading = $state(false);
+
+  // ── 2FA Disable ──────────────────────────────────────────
+  let tfaDisableVisible = $state(false);
+  let tfaDisablePassword = $state("");
+  let tfaDisableError = $state("");
+  let tfaDisableLoading = $state(false);
+
+  // Extract secret from otpauth URI for manual entry
+  function extractSecret(uri) {
+    try {
+      const url = new URL(uri);
+      return url.searchParams.get("secret") ?? "";
+    } catch {
+      return "";
+    }
+  }
+
+  // Step 1: password submitted → call enable, get TOTP URI + backup codes
+  async function startTfaSetup() {
+    tfaPasswordError = "";
+    if (!tfaPassword) {
+      tfaPasswordError = "Bitte gib dein Passwort ein.";
+      return;
+    }
+    tfaPasswordLoading = true;
+
+    const { data: d, error } = await authClient.twoFactor.enable({ password: tfaPassword });
+
+    tfaPasswordLoading = false;
+
+    if (error) {
+      tfaPasswordError = error.message ?? "Fehler beim Aktivieren.";
+      return;
+    }
+
+    tfaTotpUri = d.totpURI;
+    tfaBackupCodes = d.backupCodes ?? [];
+    tfaManualSecret = extractSecret(d.totpURI);
+
+    try {
+      tfaQrDataUrl = await QRCode.toDataURL(d.totpURI, { width: 200, margin: 2 });
+    } catch {
+      tfaQrDataUrl = "";
+    }
+
+    tfaStep = "qr";
+  }
+
+  // Step 2: verify TOTP code
+  async function verifyTfaCode() {
+    tfaVerifyError = "";
+    if (tfaVerifyCode.length !== 6) {
+      tfaVerifyError = "Bitte gib einen 6-stelligen Code ein.";
+      return;
+    }
+    tfaVerifyLoading = true;
+
+    const { error } = await authClient.twoFactor.verifyTotp({ code: tfaVerifyCode });
+
+    tfaVerifyLoading = false;
+
+    if (error) {
+      tfaVerifyError = error.message ?? "Ungültiger Code. Versuche es erneut.";
+      return;
+    }
+
+    tfaStep = "backup";
+    await invalidateAll();
+  }
+
+  // Disable 2FA
+  async function disableTfa() {
+    tfaDisableError = "";
+    if (!tfaDisablePassword) {
+      tfaDisableError = "Bitte gib dein Passwort ein.";
+      return;
+    }
+    tfaDisableLoading = true;
+
+    const { error } = await authClient.twoFactor.disable({ password: tfaDisablePassword });
+
+    tfaDisableLoading = false;
+
+    if (error) {
+      tfaDisableError = error.message ?? "Fehler beim Deaktivieren.";
+      return;
+    }
+
+    tfaDisableVisible = false;
+    tfaDisablePassword = "";
+    await invalidateAll();
+  }
+
+  function resetTfaWizard() {
+    tfaStep = "idle";
+    tfaPassword = "";
+    tfaPasswordError = "";
+    tfaTotpUri = "";
+    tfaBackupCodes = [];
+    tfaQrDataUrl = "";
+    tfaManualSecret = "";
+    tfaShowManual = false;
+    tfaVerifyCode = "";
+    tfaVerifyError = "";
+  }
 
   // ── Sessions ─────────────────────────────────────────────
   function parseBrowser(ua) {
@@ -68,7 +190,7 @@
     <div class="section-card">
       <div class="card-header">
         <h2>Profil bearbeiten</h2>
-        <p>Passe deinen Namen und dein Profilbild an.</p>
+        <p>Passe deinen Namen an.</p>
       </div>
 
       <form
@@ -111,7 +233,9 @@
 <!-- ── Security tab ─────────────────────────────────────── -->
 {#if activeTab === "security"}
   <div class="tab-content">
-    <div class="section-card">
+
+    <!-- Password section -->
+    <div class="section-card" style="margin-bottom: 1rem;">
       <div class="card-header">
         <h2>Passwort ändern</h2>
         <p>Aktualisiere dein Passwort für diesen Account.</p>
@@ -183,6 +307,205 @@
             </button>
           </div>
         </form>
+      {/if}
+    </div>
+
+    <!-- 2FA section -->
+    <div class="section-card">
+      <div class="card-header">
+        <h2>Zwei-Faktor-Authentifizierung</h2>
+        <p>Schütze deinen Account mit einem zusätzlichen Sicherheitsschritt beim Anmelden.</p>
+      </div>
+
+      {#if !data.twoFactorEnabled || tfaStep === "backup"}
+
+        <!-- 2FA not enabled OR just finished setup -->
+        {#if tfaStep === "idle"}
+          <div class="tfa-status-row">
+            <div class="tfa-icon tfa-icon--off">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+            </div>
+            <div>
+              <div class="tfa-label">2FA deaktiviert</div>
+              <div class="tfa-sublabel">Dein Account ist nur durch ein Passwort geschützt.</div>
+            </div>
+            <button class="btn-primary" onclick={() => tfaStep = "password"}>
+              2FA aktivieren
+            </button>
+          </div>
+        {/if}
+
+        <!-- Step: enter password -->
+        {#if tfaStep === "password"}
+          <div class="tfa-wizard">
+            <div class="wizard-step-header">
+              <div class="wizard-step-num">Schritt 1 von 3</div>
+              <div class="wizard-step-title">Passwort bestätigen</div>
+              <p class="wizard-step-sub">Bitte gib dein Passwort ein, um fortzufahren.</p>
+            </div>
+            <div class="field">
+              <label for="tfa-pw">Passwort</label>
+              <input
+                id="tfa-pw"
+                type="password"
+                bind:value={tfaPassword}
+                placeholder="••••••••"
+                autocomplete="current-password"
+                onkeydown={(e) => e.key === "Enter" && startTfaSetup()}
+              />
+            </div>
+            {#if tfaPasswordError}
+              <p class="msg error">{tfaPasswordError}</p>
+            {/if}
+            <div class="form-footer" style="gap: 0.5rem; margin-top: 0.5rem;">
+              <button class="btn-outline" onclick={resetTfaWizard}>Abbrechen</button>
+              <button class="btn-primary" onclick={startTfaSetup} disabled={tfaPasswordLoading}>
+                {tfaPasswordLoading ? "Bitte warten…" : "Weiter"}
+              </button>
+            </div>
+          </div>
+        {/if}
+
+        <!-- Step: QR code + manual -->
+        {#if tfaStep === "qr"}
+          <div class="tfa-wizard">
+            <div class="wizard-step-header">
+              <div class="wizard-step-num">Schritt 2 von 3</div>
+              <div class="wizard-step-title">Authenticator-App einrichten</div>
+              <p class="wizard-step-sub">Scanne den QR-Code mit einer Authenticator-App (z. B. Google Authenticator, Authy).</p>
+            </div>
+
+            {#if tfaQrDataUrl}
+              <div class="qr-wrapper">
+                <img src={tfaQrDataUrl} alt="2FA QR Code" class="qr-img" />
+              </div>
+            {:else}
+              <p class="msg error">QR-Code konnte nicht generiert werden.</p>
+            {/if}
+
+            <button
+              class="btn-link"
+              type="button"
+              onclick={() => tfaShowManual = !tfaShowManual}
+            >
+              {tfaShowManual ? "QR-Code anzeigen" : "Code manuell eingeben"}
+            </button>
+
+            {#if tfaShowManual}
+              <div class="manual-secret-box">
+                <div class="manual-secret-label">Manueller Schlüssel</div>
+                <div class="manual-secret">{tfaManualSecret}</div>
+              </div>
+            {/if}
+
+            <div class="form-footer" style="gap: 0.5rem; margin-top: 1rem;">
+              <button class="btn-outline" onclick={resetTfaWizard}>Abbrechen</button>
+              <button class="btn-primary" onclick={() => tfaStep = "verify"}>Weiter</button>
+            </div>
+          </div>
+        {/if}
+
+        <!-- Step: verify code -->
+        {#if tfaStep === "verify"}
+          <div class="tfa-wizard">
+            <div class="wizard-step-header">
+              <div class="wizard-step-num">Schritt 3 von 3</div>
+              <div class="wizard-step-title">Code bestätigen</div>
+              <p class="wizard-step-sub">Gib den 6-stelligen Code aus deiner Authenticator-App ein.</p>
+            </div>
+            <div class="field">
+              <label for="tfa-code">Authenticator-Code</label>
+              <input
+                id="tfa-code"
+                type="text"
+                inputmode="numeric"
+                pattern="[0-9]*"
+                maxlength="6"
+                bind:value={tfaVerifyCode}
+                placeholder="000000"
+                autocomplete="one-time-code"
+                onkeydown={(e) => e.key === "Enter" && verifyTfaCode()}
+              />
+            </div>
+            {#if tfaVerifyError}
+              <p class="msg error">{tfaVerifyError}</p>
+            {/if}
+            <div class="form-footer" style="gap: 0.5rem; margin-top: 0.5rem;">
+              <button class="btn-outline" onclick={() => tfaStep = "qr"}>Zurück</button>
+              <button class="btn-primary" onclick={verifyTfaCode} disabled={tfaVerifyLoading}>
+                {tfaVerifyLoading ? "Wird geprüft…" : "Bestätigen"}
+              </button>
+            </div>
+          </div>
+        {/if}
+
+        <!-- Step: backup codes -->
+        {#if tfaStep === "backup"}
+          <div class="tfa-wizard">
+            <div class="wizard-success-badge">✓ 2FA erfolgreich aktiviert</div>
+            <div class="wizard-step-header" style="margin-top: 1rem;">
+              <div class="wizard-step-title">Backup-Codes</div>
+              <p class="wizard-step-sub">Speichere diese Backup-Codes an einem sicheren Ort. Jeder Code kann einmalig verwendet werden, falls du keinen Zugriff auf deine Authenticator-App hast.</p>
+            </div>
+            <div class="backup-codes-grid">
+              {#each tfaBackupCodes as code}
+                <div class="backup-code">{code}</div>
+              {/each}
+            </div>
+            <div class="form-footer" style="margin-top: 1rem;">
+              <button class="btn-primary" onclick={resetTfaWizard}>Fertig</button>
+            </div>
+          </div>
+        {/if}
+
+      {:else}
+
+        <!-- 2FA enabled -->
+        <div class="tfa-status-row">
+          <div class="tfa-icon tfa-icon--on">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              <polyline points="9 12 11 14 15 10"/>
+            </svg>
+          </div>
+          <div>
+            <div class="tfa-label">2FA aktiv</div>
+            <div class="tfa-sublabel">Dein Account ist durch Zwei-Faktor-Authentifizierung geschützt.</div>
+          </div>
+          <button class="btn-danger-outline" onclick={() => tfaDisableVisible = !tfaDisableVisible}>
+            Deaktivieren
+          </button>
+        </div>
+
+        {#if tfaDisableVisible}
+          <div class="tfa-disable-form">
+            <div class="field">
+              <label for="tfa-disable-pw">Passwort zur Bestätigung</label>
+              <input
+                id="tfa-disable-pw"
+                type="password"
+                bind:value={tfaDisablePassword}
+                placeholder="••••••••"
+                autocomplete="current-password"
+                onkeydown={(e) => e.key === "Enter" && disableTfa()}
+              />
+            </div>
+            {#if tfaDisableError}
+              <p class="msg error">{tfaDisableError}</p>
+            {/if}
+            <div class="form-footer" style="gap: 0.5rem; margin-top: 0.5rem;">
+              <button class="btn-outline" onclick={() => { tfaDisableVisible = false; tfaDisablePassword = ""; tfaDisableError = ""; }}>
+                Abbrechen
+              </button>
+              <button class="btn-danger" onclick={disableTfa} disabled={tfaDisableLoading}>
+                {tfaDisableLoading ? "Wird deaktiviert…" : "2FA deaktivieren"}
+              </button>
+            </div>
+          </div>
+        {/if}
+
       {/if}
     </div>
   </div>
@@ -354,7 +677,7 @@
   .field input:focus { border-color: var(--accent); }
   .field input::placeholder { color: var(--text-muted); }
 
-  /* ── Security ───────────────────────────────── */
+  /* ── Security / Password ────────────────────── */
   .pw-icon-row {
     display: flex;
     align-items: center;
@@ -389,6 +712,173 @@
   .pw-icon-row > div:nth-child(2) { flex: 1; }
 
   .pw-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    padding: 1rem 1.25rem 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+
+  /* ── 2FA ─────────────────────────────────────── */
+  .tfa-status-row {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    padding: 0 1.25rem 1.1rem;
+  }
+
+  .tfa-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+
+  .tfa-icon--off {
+    background: rgba(110, 118, 129, 0.12);
+    color: #6e7681;
+  }
+
+  .tfa-icon--on {
+    background: rgba(63, 185, 80, 0.12);
+    color: var(--accent);
+  }
+
+  .tfa-label {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .tfa-sublabel {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 0.1rem;
+  }
+
+  .tfa-status-row > div:nth-child(2) { flex: 1; }
+
+  .tfa-wizard {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    padding: 1rem 1.25rem 1.25rem;
+    border-top: 1px solid var(--border);
+  }
+
+  .wizard-step-header { margin-bottom: 0.25rem; }
+
+  .wizard-step-num {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--accent);
+    margin-bottom: 0.25rem;
+  }
+
+  .wizard-step-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.2rem;
+  }
+
+  .wizard-step-sub {
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+
+  .wizard-success-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent);
+    background: rgba(63, 185, 80, 0.1);
+    border: 1px solid rgba(63, 185, 80, 0.25);
+    border-radius: var(--radius);
+    padding: 0.45rem 0.75rem;
+    align-self: flex-start;
+  }
+
+  .qr-wrapper {
+    display: flex;
+    justify-content: center;
+    padding: 0.75rem;
+    background: #fff;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    width: fit-content;
+  }
+
+  .qr-img {
+    display: block;
+    width: 180px;
+    height: 180px;
+  }
+
+  .btn-link {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 12.5px;
+    cursor: pointer;
+    padding: 0;
+    text-align: left;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .manual-secret-box {
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+  }
+
+  .manual-secret-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    margin-bottom: 0.35rem;
+  }
+
+  .manual-secret {
+    font-family: monospace;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    letter-spacing: 0.08em;
+    word-break: break-all;
+  }
+
+  .backup-codes-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.4rem;
+  }
+
+  .backup-code {
+    background: var(--bg-main);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.75rem;
+    font-family: monospace;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: center;
+    letter-spacing: 0.05em;
+  }
+
+  .tfa-disable-form {
     display: flex;
     flex-direction: column;
     gap: 0.8rem;
@@ -450,6 +940,23 @@
   }
 
   .btn-outline:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+  .btn-danger {
+    display: inline-flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: var(--danger);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.12s;
+  }
+
+  .btn-danger:hover:not(:disabled) { opacity: 0.85; }
+  .btn-danger:disabled { opacity: 0.6; cursor: not-allowed; }
 
   /* ── Sessions ───────────────────────────────── */
   .sessions-top {

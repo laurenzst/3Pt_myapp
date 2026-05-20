@@ -7,16 +7,40 @@
   let error = $state("");
   let loading = $state(false);
 
+  // 2FA state
+  let twoFactorPending = $state(false);
+  let totpCode = $state("");
+  let twoFactorError = $state("");
+  let twoFactorLoading = $state(false);
+
   async function handleSubmit(e) {
     e.preventDefault();
     loading = true;
     error = "";
 
-    const { error: err } = await authClient.signIn.email({ email, password });
+    const { data, error: err } = await authClient.signIn.email({ email, password });
 
     if (err) {
       error = err.message ?? "Anmeldung fehlgeschlagen.";
       loading = false;
+    } else if (data?.twoFactorRedirect) {
+      twoFactorPending = true;
+      loading = false;
+    } else {
+      goto("/");
+    }
+  }
+
+  async function handleTwoFactor(e) {
+    e.preventDefault();
+    twoFactorLoading = true;
+    twoFactorError = "";
+
+    const { error: err } = await authClient.twoFactor.verifyTotp({ code: totpCode });
+
+    if (err) {
+      twoFactorError = err.message ?? "Ungültiger Code.";
+      twoFactorLoading = false;
     } else {
       goto("/");
     }
@@ -30,46 +54,84 @@
       <span class="app-name">StudyFlow</span>
     </div>
 
-    <h1 class="auth-title">Anmelden</h1>
-    <p class="auth-sub">Melde dich mit deinem Account an.</p>
+    {#if !twoFactorPending}
+      <h1 class="auth-title">Anmelden</h1>
+      <p class="auth-sub">Melde dich mit deinem Account an.</p>
 
-    <form onsubmit={handleSubmit} class="auth-form">
-      <div class="field">
-        <label for="email">E-Mail</label>
-        <input
-          id="email"
-          type="email"
-          bind:value={email}
-          placeholder="name@example.com"
-          required
-          autocomplete="email"
-        />
-      </div>
+      <form onsubmit={handleSubmit} class="auth-form">
+        <div class="field">
+          <label for="email">E-Mail</label>
+          <input
+            id="email"
+            type="email"
+            bind:value={email}
+            placeholder="name@example.com"
+            required
+            autocomplete="email"
+          />
+        </div>
 
-      <div class="field">
-        <label for="password">Passwort</label>
-        <input
-          id="password"
-          type="password"
-          bind:value={password}
-          placeholder="••••••••"
-          required
-          autocomplete="current-password"
-        />
-      </div>
+        <div class="field">
+          <label for="password">Passwort</label>
+          <input
+            id="password"
+            type="password"
+            bind:value={password}
+            placeholder="••••••••"
+            required
+            autocomplete="current-password"
+          />
+        </div>
 
-      {#if error}
-        <p class="error">{error}</p>
-      {/if}
+        {#if error}
+          <p class="error">{error}</p>
+        {/if}
 
-      <button type="submit" class="btn-submit" disabled={loading}>
-        {loading ? "Wird angemeldet…" : "Anmelden"}
-      </button>
-    </form>
+        <button type="submit" class="btn-submit" disabled={loading}>
+          {loading ? "Wird angemeldet…" : "Anmelden"}
+        </button>
+      </form>
 
-    <p class="auth-footer">
-      Noch kein Account? <a href="/register">Registrieren</a>
-    </p>
+      <p class="auth-footer">
+        Noch kein Account? <a href="/register">Registrieren</a>
+      </p>
+    {:else}
+      <h1 class="auth-title">Zwei-Faktor-Authentifizierung</h1>
+      <p class="auth-sub">Gib den Code aus deiner Authenticator-App ein.</p>
+
+      <form onsubmit={handleTwoFactor} class="auth-form">
+        <div class="field">
+          <label for="totp-code">Authentifizierungscode</label>
+          <input
+            id="totp-code"
+            type="text"
+            inputmode="numeric"
+            pattern="[0-9]*"
+            maxlength="6"
+            bind:value={totpCode}
+            placeholder="000000"
+            required
+            autocomplete="one-time-code"
+          />
+        </div>
+
+        {#if twoFactorError}
+          <p class="error">{twoFactorError}</p>
+        {/if}
+
+        <button type="submit" class="btn-submit" disabled={twoFactorLoading}>
+          {twoFactorLoading ? "Wird geprüft…" : "Bestätigen"}
+        </button>
+      </form>
+
+      <p class="auth-footer">
+        <button
+          type="button"
+          class="link-btn"
+          onclick={() => { twoFactorPending = false; totpCode = ""; twoFactorError = ""; }}
+        >Zurück zur Anmeldung</button>
+      </p>
+    {/if}
   </div>
 </div>
 
@@ -215,6 +277,20 @@
   }
 
   .auth-footer a:hover {
+    text-decoration: underline;
+  }
+
+  .link-btn {
+    background: none;
+    border: none;
+    color: var(--accent);
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+    text-decoration: none;
+  }
+
+  .link-btn:hover {
     text-decoration: underline;
   }
 </style>

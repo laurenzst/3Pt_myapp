@@ -7,12 +7,16 @@ export async function load({ locals }) {
   const userId = locals.user.id;
   const currentToken = locals.session?.token;
 
-  const sessions = await db.collection("session")
-    .find({ userId: new ObjectId(userId) })
-    .sort({ createdAt: -1 })
-    .toArray();
+  const [sessions, user] = await Promise.all([
+    db.collection("session")
+      .find({ userId: new ObjectId(userId) })
+      .sort({ createdAt: -1 })
+      .toArray(),
+    db.collection("user").findOne({ _id: new ObjectId(userId) }, { projection: { twoFactorEnabled: 1 } }),
+  ]);
 
   return {
+    twoFactorEnabled: user?.twoFactorEnabled ?? false,
     sessions: sessions.map(s => ({
       id: s._id.toString(),
       token: s.token,

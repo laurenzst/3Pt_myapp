@@ -1,5 +1,6 @@
 import { betterAuth } from "better-auth";
 import { mongodbAdapter } from "better-auth/adapters/mongodb";
+import { twoFactor } from "better-auth/plugins";
 import { BETTER_AUTH_SECRET } from "$env/static/private";
 import { db } from "$lib/mongodb.server.js";
 
@@ -31,6 +32,9 @@ export const auth = betterAuth({
   emailAndPassword: {
     enabled: true,
   },
+  plugins: [
+    twoFactor(),
+  ],
   rateLimit: {
     window: 10,
     max: 20,
