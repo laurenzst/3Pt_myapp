@@ -30,6 +30,9 @@ export const auth = betterAuth({
   secret: BETTER_AUTH_SECRET,
   database: mongodbAdapter(db),
   secondaryStorage,
+  session: {
+    storeSessionInDatabase: true,
+  },
   emailAndPassword: {
     enabled: true,
   },
