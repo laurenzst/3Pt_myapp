@@ -1,5 +1,6 @@
 import { db } from "$lib/mongodb.server.js";
 import { auth } from "$lib/auth.server.js";
+import { ObjectId } from "mongodb";
 import { fail } from "@sveltejs/kit";
 
 export async function load({ locals }) {
@@ -7,7 +8,7 @@ export async function load({ locals }) {
   const currentToken = locals.session?.token;
 
   const sessions = await db.collection("session")
-    .find({ userId })
+    .find({ userId: new ObjectId(userId) })
     .sort({ createdAt: -1 })
     .toArray();
 
@@ -33,7 +34,7 @@ export const actions = {
     if (!name) return fail(400, { error: "Name darf nicht leer sein." });
 
     await db.collection("user").updateOne(
-      { _id: userId },
+      { _id: new ObjectId(userId) },
       { $set: { name, updatedAt: new Date() } }
     );
   },
@@ -75,7 +76,7 @@ export const actions = {
     const data = await request.formData();
     const token = data.get("token")?.toString();
     if (token) {
-      await db.collection("session").deleteOne({ token, userId });
+      await db.collection("session").deleteOne({ token, userId: new ObjectId(userId) });
     }
   },
 
@@ -83,7 +84,7 @@ export const actions = {
     const userId = locals.user.id;
     const currentToken = locals.session?.token;
     await db.collection("session").deleteMany({
-      userId,
+      userId: new ObjectId(userId),
       token: { $ne: currentToken },
     });
   },
