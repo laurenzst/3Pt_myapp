@@ -55,7 +55,7 @@ async function assignPriority(taskId, priority, userId) {
     );
 
     await collection.updateOne(
-      { _id: new ObjectId(taskId) },
+      { _id: new ObjectId(taskId), userId },
       { $set: { priority: targetPriority } }
     );
   } catch (error) {
@@ -66,7 +66,7 @@ async function assignPriority(taskId, priority, userId) {
 async function reorderTask(taskId, newPriority, userId) {
   try {
     const collection = db.collection("tasks");
-    const task = await collection.findOne({ _id: new ObjectId(taskId) });
+    const task = await collection.findOne({ _id: new ObjectId(taskId), userId });
     if (!task || task.priority == null) return;
 
     const current = task.priority;
@@ -85,7 +85,7 @@ async function reorderTask(taskId, newPriority, userId) {
     }
 
     await collection.updateOne(
-      { _id: new ObjectId(taskId) },
+      { _id: new ObjectId(taskId), userId },
       { $set: { priority: newPriority } }
     );
   } catch (error) {
@@ -96,17 +96,17 @@ async function reorderTask(taskId, newPriority, userId) {
 async function toggleStatus(taskId, userId) {
   try {
     const collection = db.collection("tasks");
-    const task = await collection.findOne({ _id: new ObjectId(taskId) });
+    const task = await collection.findOne({ _id: new ObjectId(taskId), userId });
     if (!task) return;
 
     if (task.status === "done") {
       await collection.updateOne(
-        { _id: new ObjectId(taskId) },
+        { _id: new ObjectId(taskId), userId },
         { $set: { status: "active" }, $unset: { priority: "" } }
       );
     } else {
       await collection.updateOne(
-        { _id: new ObjectId(taskId) },
+        { _id: new ObjectId(taskId), userId },
         { $set: { status: "done" }, $unset: { priority: "" } }
       );
       await normalizePriorities(collection, userId);
@@ -119,7 +119,7 @@ async function toggleStatus(taskId, userId) {
 async function deleteTask(taskId, userId) {
   try {
     const collection = db.collection("tasks");
-    await collection.deleteOne({ _id: new ObjectId(taskId) });
+    await collection.deleteOne({ _id: new ObjectId(taskId), userId });
     await normalizePriorities(collection, userId);
   } catch (error) {
     console.log(error.message);
