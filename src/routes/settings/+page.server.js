@@ -1,4 +1,5 @@
 import { db } from "$lib/mongodb.server.js";
+import { auth } from "$lib/auth.server.js";
 import { fail } from "@sveltejs/kit";
 
 export async function load({ locals }) {
@@ -12,11 +13,12 @@ export async function load({ locals }) {
 
   return {
     sessions: sessions.map(s => ({
-      id: s.id,
-      ipAddress: s.ipAddress ?? "Unbekannt",
+      id: s._id.toString(),
+      token: s.token,
+      ipAddress: s.ipAddress ?? null,
       userAgent: s.userAgent ?? "",
       createdAt: s.createdAt?.toISOString() ?? null,
-      expiresAt: s.expiresAt?.toISOString() ?? null,
+      updatedAt: s.updatedAt?.toISOString() ?? null,
       isCurrent: s.token === currentToken,
     })),
   };
@@ -27,27 +29,53 @@ export const actions = {
     const userId = locals.user.id;
     const data = await request.formData();
     const name = data.get("name")?.toString().trim();
-    const githubUser = data.get("githubUser")?.toString().trim();
 
     if (!name) return fail(400, { error: "Name darf nicht leer sein." });
 
-    const updates = {
-      name,
-      image: githubUser ? `https://github.com/${githubUser}.png` : null,
-      updatedAt: new Date(),
-    };
+    await db.collection("user").updateOne(
+      { _id: userId },
+      { $set: { name, updatedAt: new Date() } }
+    );
+  },
 
-    if (!githubUser) delete updates.image;
+  changePassword: async ({ request }) => {
+    const data = await request.formData();
+    const currentPassword = data.get("currentPassword")?.toString();
+    const newPassword = data.get("newPassword")?.toString();
+    const confirmPassword = data.get("confirmPassword")?.toString();
 
-    await db.collection("user").updateOne({ id: userId }, { $set: updates });
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return fail(400, { pwError: "Alle Felder sind erforderlich." });
+    }
+    if (newPassword !== confirmPassword) {
+      return fail(400, { pwError: "Die Passwörter stimmen nicht überein." });
+    }
+    if (newPassword.length < 8) {
+      return fail(400, { pwError: "Das neue Passwort muss mindestens 8 Zeichen haben." });
+    }
+
+    try {
+      await auth.api.changePassword({
+        body: { currentPassword, newPassword, revokeOtherSessions: false },
+        headers: request.headers,
+      });
+    } catch (e) {
+      const code = e?.body?.code;
+      if (code === "INVALID_PASSWORD") {
+        return fail(400, { pwError: "Das aktuelle Passwort ist falsch." });
+      }
+      return fail(400, { pwError: "Passwort konnte nicht geändert werden." });
+    }
+
+    return { pwSuccess: true };
   },
 
   revokeSession: async ({ request, locals }) => {
     const userId = locals.user.id;
     const data = await request.formData();
-    const sessionId = data.get("sessionId")?.toString();
-    if (sessionId) {
-      await db.collection("session").deleteOne({ id: sessionId, userId });
+    const token = data.get("token")?.toString();
+    if (token) {
+      await db.collection("session").deleteOne({ token, userId });
     }
   },
 

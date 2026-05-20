@@ -2,40 +2,41 @@
   import { enhance } from "$app/forms";
   import { invalidateAll } from "$app/navigation";
 
-  let { data } = $props();
+  let { data, form } = $props();
 
+  // ── Tabs ─────────────────────────────────────────────────
+  let activeTab = $state("profile");
+
+  // ── Profile ──────────────────────────────────────────────
   let name = $state(data.user?.name ?? "");
-  let githubUser = $state(deriveGithubUser(data.user?.image));
-  let avatarPreview = $derived(
-    githubUser ? `https://github.com/${githubUser}.png` : null
-  );
-
   let profileSuccess = $state(false);
   let profileError = $state("");
 
-  function deriveGithubUser(imageUrl) {
-    if (!imageUrl) return "";
-    const match = imageUrl.match(/^https:\/\/github\.com\/([^/]+)\.png/);
-    return match ? match[1] : "";
-  }
+  // ── Security ─────────────────────────────────────────────
+  let securityLoading = $state(false);
+  let pwFormVisible = $state(false);
 
+  let pwError = $derived(form?.pwError ?? "");
+  let pwSuccess = $derived(form?.pwSuccess ?? false);
+
+  // ── Sessions ─────────────────────────────────────────────
   function parseBrowser(ua) {
-    if (!ua) return "Unbekannt";
-    if (ua.includes("Edg")) return "Edge";
-    if (ua.includes("Chrome")) return "Chrome";
-    if (ua.includes("Firefox")) return "Firefox";
-    if (ua.includes("Safari")) return "Safari";
-    return "Browser";
+    if (!ua) return { name: "Unbekannt", color: "#6e7681" };
+    if (ua.includes("Edg")) return { name: "Edge", color: "#0078d4" };
+    if (ua.includes("Chrome")) return { name: "Chrome", color: "#4285f4" };
+    if (ua.includes("Firefox")) return { name: "Firefox", color: "#ff7139" };
+    if (ua.includes("Safari")) return { name: "Safari", color: "#1c9aff" };
+    return { name: "Browser", color: "#6e7681" };
   }
 
   function parseOS(ua) {
-    if (!ua) return "";
+    if (!ua) return null;
     if (ua.includes("Windows")) return "Windows";
     if (ua.includes("Mac OS")) return "macOS";
     if (ua.includes("Linux")) return "Linux";
     if (ua.includes("Android")) return "Android";
     if (ua.includes("iPhone") || ua.includes("iPad")) return "iOS";
-    return "";
+    return null;
   }
 
   function formatDate(iso) {
@@ -48,236 +49,282 @@
 </script>
 
 <p class="page-breadcrumb">Account</p>
-<h1 class="page-title">Einstellungen</h1>
-<p class="page-subtitle">Passe dein Profil an und verwalte deine Sitzungen.</p>
+<h1 class="page-title">Profil</h1>
 
-<!-- ── Profile ──────────────────────────────────────────── -->
-<section class="settings-section">
-  <h2 class="section-title">Profil</h2>
+<!-- ── Tab bar ──────────────────────────────────────────── -->
+<div class="tab-bar">
+  {#each [["profile","Profil"],["security","Sicherheit"],["sessions","Sitzungen"]] as [id, label]}
+    <button
+      class="tab"
+      class:active={activeTab === id}
+      onclick={() => activeTab = id}
+    >{label}</button>
+  {/each}
+</div>
 
-  <div class="profile-card">
-    <div class="avatar-area">
-      <div class="avatar-circle">
-        {#if avatarPreview}
-          <img src={avatarPreview} alt={name} onerror={(e) => e.target.style.display='none'} />
-        {:else}
-          <span>{name ? name[0].toUpperCase() : "?"}</span>
-        {/if}
-      </div>
-      <div class="avatar-hint">
-        Profilbild via GitHub-Username
-      </div>
-    </div>
-
-    <form
-      method="POST"
-      action="?/updateProfile"
-      use:enhance={() => {
-        return async ({ result, update }) => {
-          if (result.type === "failure") {
-            profileError = result.data?.error ?? "Fehler beim Speichern.";
-          } else {
-            profileError = "";
-            profileSuccess = true;
-            setTimeout(() => profileSuccess = false, 2500);
-            await invalidateAll();
-          }
-          await update({ reset: false });
-        };
-      }}
-      class="profile-form"
-    >
-      <div class="field">
-        <label for="name">Name</label>
-        <input
-          id="name"
-          name="name"
-          type="text"
-          bind:value={name}
-          required
-          placeholder="Dein Name"
-        />
+<!-- ── Profile tab ──────────────────────────────────────── -->
+{#if activeTab === "profile"}
+  <div class="tab-content">
+    <div class="section-card">
+      <div class="card-header">
+        <h2>Profil bearbeiten</h2>
+        <p>Passe deinen Namen und dein Profilbild an.</p>
       </div>
 
-      <div class="field">
-        <label for="githubUser">GitHub-Username</label>
-        <div class="github-input-wrap">
-          <span class="github-prefix">github.com/</span>
-          <input
-            id="githubUser"
-            name="githubUser"
-            type="text"
-            bind:value={githubUser}
-            placeholder="username"
-          />
+      <form
+        method="POST"
+        action="?/updateProfile"
+        class="profile-form"
+        use:enhance={() => {
+          return async ({ result, update }) => {
+            if (result.type === "failure") {
+              profileError = result.data?.error ?? "Fehler beim Speichern.";
+            } else {
+              profileError = "";
+              profileSuccess = true;
+              setTimeout(() => (profileSuccess = false), 2500);
+              await invalidateAll();
+            }
+            await update({ reset: false });
+          };
+        }}
+      >
+        <div class="field">
+          <label for="name">Name</label>
+          <input id="name" name="name" type="text" bind:value={name} required placeholder="Dein Name" />
         </div>
-        <p class="field-hint">
-          Dein Profilbild wird von
-          {#if githubUser}
-            <a href="https://github.com/{githubUser}" target="_blank" rel="noopener">
-              github.com/{githubUser}
-            </a>
-          {:else}
-            GitHub
-          {/if}
-          geladen.
-        </p>
-      </div>
 
-      {#if profileError}
-        <p class="form-error">{profileError}</p>
-      {/if}
+        {#if profileError}
+          <p class="msg error">{profileError}</p>
+        {/if}
 
-      <div class="form-actions">
-        <button type="submit" class="btn-save">
-          {#if profileSuccess}
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-            Gespeichert
-          {:else}
-            Speichern
-          {/if}
-        </button>
-      </div>
-    </form>
-  </div>
-</section>
-
-<!-- ── Sessions ─────────────────────────────────────────── -->
-<section class="settings-section">
-  <div class="section-header">
-    <h2 class="section-title">Aktive Sitzungen</h2>
-    {#if data.sessions.filter(s => !s.isCurrent).length > 0}
-      <form method="POST" action="?/revokeOtherSessions" use:enhance={() => {
-        return async ({ update }) => { await update(); await invalidateAll(); };
-      }}>
-        <button type="submit" class="btn-revoke-all">Alle anderen abmelden</button>
+        <div class="form-footer">
+          <button type="submit" class="btn-primary">
+            {#if profileSuccess}✓ Gespeichert{:else}Speichern{/if}
+          </button>
+        </div>
       </form>
-    {/if}
+    </div>
   </div>
+{/if}
 
-  <div class="sessions-list">
-    {#each data.sessions as session (session.id)}
-      <div class="session-row" class:current={session.isCurrent}>
-        <div class="session-icon">
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-            <line x1="8" y1="21" x2="16" y2="21"/>
-            <line x1="12" y1="17" x2="12" y2="21"/>
+<!-- ── Security tab ─────────────────────────────────────── -->
+{#if activeTab === "security"}
+  <div class="tab-content">
+    <div class="section-card">
+      <div class="card-header">
+        <h2>Passwort ändern</h2>
+        <p>Aktualisiere dein Passwort für diesen Account.</p>
+      </div>
+
+      <div class="pw-icon-row">
+        <div class="pw-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
           </svg>
         </div>
-        <div class="session-info">
-          <div class="session-device">
-            {parseBrowser(session.userAgent)}
-            {#if parseOS(session.userAgent)}· {parseOS(session.userAgent)}{/if}
-            {#if session.isCurrent}
-              <span class="current-badge">Aktuelle Sitzung</span>
-            {/if}
-          </div>
-          <div class="session-meta">
-            {session.ipAddress} · Angemeldet: {formatDate(session.createdAt)}
-          </div>
+        <div>
+          <div class="pw-title">Passwort</div>
+          <div class="pw-sub">Sichere deinen Account mit einem starken Passwort.</div>
         </div>
-        {#if !session.isCurrent}
-          <form method="POST" action="?/revokeSession" use:enhance={() => {
+        <button
+          class="btn-outline"
+          type="button"
+          onclick={() => pwFormVisible = !pwFormVisible}
+        >
+          Passwort ändern
+        </button>
+      </div>
+
+      {#if pwSuccess}
+        <p class="msg success" style="margin: 0 1.25rem 1rem;">✓ Passwort erfolgreich geändert.</p>
+      {/if}
+
+      {#if pwFormVisible || pwError}
+        <form
+          method="POST"
+          action="?/changePassword"
+          class="pw-form"
+          use:enhance={() => {
+            securityLoading = true;
+            return async ({ result, update }) => {
+              securityLoading = false;
+              if (result.type === "success") {
+                pwFormVisible = false;
+              }
+              await update({ reset: result.type === "success" });
+            };
+          }}
+        >
+          <div class="field">
+            <label for="currentPw">Aktuelles Passwort</label>
+            <input id="currentPw" name="currentPassword" type="password" required placeholder="••••••••" autocomplete="current-password" />
+          </div>
+          <div class="field">
+            <label for="newPw">Neues Passwort</label>
+            <input id="newPw" name="newPassword" type="password" required minlength="8" placeholder="Min. 8 Zeichen" autocomplete="new-password" />
+          </div>
+          <div class="field">
+            <label for="confirmPw">Passwort bestätigen</label>
+            <input id="confirmPw" name="confirmPassword" type="password" required placeholder="••••••••" autocomplete="new-password" />
+          </div>
+
+          {#if pwError}
+            <p class="msg error">{pwError}</p>
+          {/if}
+
+          <div class="form-footer" style="gap: 0.5rem;">
+            <button type="button" class="btn-outline" onclick={() => { pwFormVisible = false; }}>
+              Abbrechen
+            </button>
+            <button type="submit" class="btn-primary" disabled={securityLoading}>
+              {securityLoading ? "Wird geändert…" : "Passwort speichern"}
+            </button>
+          </div>
+        </form>
+      {/if}
+    </div>
+  </div>
+{/if}
+
+<!-- ── Sessions tab ─────────────────────────────────────── -->
+{#if activeTab === "sessions"}
+  <div class="tab-content">
+    <div class="section-card">
+      <div class="sessions-top">
+        <div>
+          <h2>Aktive Sitzungen</h2>
+          <p>Verwalte deine Sitzungen auf allen Geräten. Du kannst jede Sitzung beenden, um eine Neu-Anmeldung zu erzwingen.</p>
+        </div>
+        {#if data.sessions.filter(s => !s.isCurrent).length > 0}
+          <form method="POST" action="?/revokeOtherSessions" use:enhance={() => {
             return async ({ update }) => { await update(); await invalidateAll(); };
           }}>
-            <input type="hidden" name="sessionId" value={session.id} />
-            <button type="submit" class="btn-revoke" title="Sitzung beenden">
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
+            <button type="submit" class="btn-danger-outline">Alle anderen abmelden</button>
           </form>
         {/if}
       </div>
-    {/each}
+
+      <div class="sessions-list">
+        {#each data.sessions as s (s.id)}
+          {@const browser = parseBrowser(s.userAgent)}
+          {@const os = parseOS(s.userAgent)}
+          <div class="session-card" class:current={s.isCurrent}>
+            <div class="session-browser-icon" style:background={browser.color + "22"} style:color={browser.color}>
+              {browser.name[0]}
+            </div>
+            <div class="session-info">
+              <div class="session-title">
+                {browser.name}{os ? ` on ${os}` : ""}
+                {#if s.isCurrent}
+                  <span class="badge-current">Current</span>
+                {/if}
+              </div>
+              <div class="session-meta">
+                <span class="meta-item">
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10"/>
+                    <line x1="2" y1="12" x2="22" y2="12"/>
+                    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                  </svg>
+                  {s.ipAddress ?? "Unbekannte IP"}
+                </span>
+                <span class="meta-sep">·</span>
+                <span>Erstellt: {formatDate(s.createdAt)}</span>
+                {#if s.updatedAt && s.updatedAt !== s.createdAt}
+                  <span class="meta-sep">·</span>
+                  <span>Zuletzt aktiv: {formatDate(s.updatedAt)}</span>
+                {/if}
+              </div>
+            </div>
+
+            {#if !s.isCurrent}
+              <form method="POST" action="?/revokeSession" use:enhance={() => {
+                return async ({ update }) => { await update(); await invalidateAll(); };
+              }}>
+                <input type="hidden" name="token" value={s.token} />
+                <button type="submit" class="btn-revoke" title="Sitzung beenden">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+                  </svg>
+                </button>
+              </form>
+            {/if}
+          </div>
+        {:else}
+          <p class="empty-hint">Keine aktiven Sitzungen gefunden.</p>
+        {/each}
+      </div>
+    </div>
   </div>
-</section>
+{/if}
 
 <style>
-  .settings-section {
-    margin-bottom: 2rem;
-    max-width: 560px;
-  }
-
-  .section-header {
+  /* ── Tab bar ────────────────────────────────── */
+  .tab-bar {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 0.85rem;
-  }
-
-  .section-title {
-    font-size: 15px;
-    font-weight: 600;
-    color: var(--text-primary);
-    margin-bottom: 0.85rem;
-  }
-
-  .section-header .section-title {
-    margin-bottom: 0;
-  }
-
-  /* ── Profile card ───────────────────────────── */
-  .profile-card {
+    gap: 0.2rem;
+    margin-bottom: 1.5rem;
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 1.25rem;
-    display: flex;
-    gap: 1.5rem;
-    align-items: flex-start;
+    padding: 0.25rem;
+    width: fit-content;
   }
 
-  .avatar-area {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 0.5rem;
-    flex-shrink: 0;
-  }
-
-  .avatar-circle {
-    width: 64px;
-    height: 64px;
-    border-radius: 50%;
-    background: var(--bg-hover);
-    border: 2px solid var(--border);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--text-primary);
-    overflow: hidden;
-    position: relative;
-  }
-
-  .avatar-circle img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    position: absolute;
-    inset: 0;
-  }
-
-  .avatar-hint {
-    font-size: 11px;
+  .tab {
+    padding: 0.4rem 0.9rem;
+    font-size: 13px;
+    font-weight: 500;
     color: var(--text-muted);
-    text-align: center;
-    max-width: 72px;
-    line-height: 1.3;
+    background: none;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
   }
 
-  /* ── Profile form ───────────────────────────── */
+  .tab:hover { color: var(--text-primary); background: var(--bg-hover); }
+
+  .tab.active {
+    background: var(--bg-hover);
+    color: var(--text-primary);
+  }
+
+  /* ── Content + cards ────────────────────────── */
+  .tab-content { max-width: 600px; }
+
+  .section-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .card-header {
+    padding: 1.1rem 1.25rem 0;
+  }
+
+  .card-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.2rem;
+  }
+
+  .card-header p {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    margin-bottom: 1rem;
+  }
+
+  /* ── Form fields ────────────────────────────── */
   .profile-form {
-    flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 0.85rem;
-    min-width: 0;
+    gap: 0.8rem;
+    padding: 0 1.25rem 1.25rem;
   }
 
   .field {
@@ -307,62 +354,71 @@
   .field input:focus { border-color: var(--accent); }
   .field input::placeholder { color: var(--text-muted); }
 
-  .github-input-wrap {
+  /* ── Security ───────────────────────────────── */
+  .pw-icon-row {
     display: flex;
     align-items: center;
-    background: var(--bg-main);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    transition: border-color 0.12s;
+    gap: 0.85rem;
+    padding: 0 1.25rem 1.1rem;
   }
 
-  .github-input-wrap:focus-within { border-color: var(--accent); }
-
-  .github-prefix {
-    font-size: 13px;
-    color: var(--text-muted);
-    padding: 0.5rem 0 0.5rem 0.75rem;
-    white-space: nowrap;
+  .pw-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 8px;
+    background: rgba(255, 200, 50, 0.12);
+    color: #e6b800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     flex-shrink: 0;
   }
 
-  .github-input-wrap input {
-    border: none;
-    border-radius: 0;
-    padding-left: 0.2rem;
+  .pw-title {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-primary);
   }
 
-  .github-input-wrap input:focus { border-color: transparent; }
-
-  .field-hint {
-    font-size: 11.5px;
+  .pw-sub {
+    font-size: 12px;
     color: var(--text-muted);
     margin-top: 0.1rem;
   }
 
-  .field-hint a {
-    color: var(--accent);
-    text-decoration: none;
+  .pw-icon-row > div:nth-child(2) { flex: 1; }
+
+  .pw-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.8rem;
+    padding: 1rem 1.25rem 1.25rem;
+    border-top: 1px solid var(--border);
   }
 
-  .field-hint a:hover { text-decoration: underline; }
-
-  .form-error {
+  /* ── Messages ───────────────────────────────── */
+  .msg {
     font-size: 12.5px;
+    padding: 0.45rem 0.75rem;
+    border-radius: var(--radius);
+  }
+
+  .msg.error {
     color: var(--danger);
     background: rgba(218, 54, 51, 0.1);
     border: 1px solid rgba(218, 54, 51, 0.25);
-    border-radius: var(--radius);
-    padding: 0.45rem 0.7rem;
   }
 
-  .form-actions {
-    display: flex;
-    justify-content: flex-end;
+  .msg.success {
+    color: var(--accent);
+    background: rgba(63, 185, 80, 0.1);
+    border: 1px solid rgba(63, 185, 80, 0.25);
   }
 
-  .btn-save {
+  /* ── Buttons ────────────────────────────────── */
+  .form-footer { display: flex; justify-content: flex-end; gap: 0.5rem; }
+
+  .btn-primary {
     display: inline-flex;
     align-items: center;
     gap: 0.4rem;
@@ -377,64 +433,109 @@
     transition: background 0.12s;
   }
 
-  .btn-save:hover { background: var(--accent-hover); }
+  .btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+  .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .btn-outline {
+    padding: 0.4rem 0.85rem;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background 0.12s, color 0.12s;
+  }
+
+  .btn-outline:hover { background: var(--bg-hover); color: var(--text-primary); }
 
   /* ── Sessions ───────────────────────────────── */
-  .btn-revoke-all {
-    font-size: 12px;
+  .sessions-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1.1rem 1.25rem 0;
+    margin-bottom: 1rem;
+  }
+
+  .sessions-top h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.2rem;
+  }
+
+  .sessions-top p {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    max-width: 360px;
+  }
+
+  .btn-danger-outline {
+    padding: 0.4rem 0.85rem;
+    font-size: 12.5px;
+    font-weight: 500;
     color: var(--danger);
     background: none;
-    border: 1px solid rgba(218, 54, 51, 0.3);
+    border: 1px solid rgba(218, 54, 51, 0.35);
     border-radius: var(--radius);
-    padding: 0.3rem 0.65rem;
     cursor: pointer;
+    white-space: nowrap;
     transition: background 0.12s;
   }
 
-  .btn-revoke-all:hover { background: rgba(218, 54, 51, 0.1); }
+  .btn-danger-outline:hover { background: rgba(218, 54, 51, 0.1); }
 
   .sessions-list {
     display: flex;
     flex-direction: column;
-    gap: 0.4rem;
-  }
-
-  .session-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 0.7rem 0.85rem;
-  }
-
-  .session-row.current {
-    border-color: rgba(63, 185, 80, 0.35);
-    background: rgba(63, 185, 80, 0.04);
-  }
-
-  .session-icon {
-    color: var(--text-muted);
-    flex-shrink: 0;
-    display: flex;
-  }
-
-  .session-info {
-    flex: 1;
-    min-width: 0;
-  }
-
-  .session-device {
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--text-primary);
-    display: flex;
-    align-items: center;
+    padding: 0 1.25rem 1.25rem;
     gap: 0.5rem;
   }
 
-  .current-badge {
+  .session-card {
+    display: flex;
+    align-items: center;
+    gap: 0.85rem;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 0.85rem;
+  }
+
+  .session-card.current {
+    border-color: rgba(63, 185, 80, 0.3);
+    background: rgba(63, 185, 80, 0.04);
+  }
+
+  .session-browser-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 14px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .session-info { flex: 1; min-width: 0; }
+
+  .session-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.2rem;
+  }
+
+  .badge-current {
     font-size: 10.5px;
     font-weight: 600;
     color: var(--accent);
@@ -445,20 +546,28 @@
   }
 
   .session-meta {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
     font-size: 11.5px;
     color: var(--text-muted);
-    margin-top: 0.1rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    flex-wrap: wrap;
   }
+
+  .meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .meta-sep { opacity: 0.4; }
 
   .btn-revoke {
     display: flex;
     align-items: center;
     justify-content: center;
-    width: 26px;
-    height: 26px;
+    width: 28px;
+    height: 28px;
     background: transparent;
     color: var(--text-muted);
     border: 1px solid transparent;
@@ -472,5 +581,11 @@
     background: rgba(218, 54, 51, 0.12);
     color: var(--danger);
     border-color: rgba(218, 54, 51, 0.25);
+  }
+
+  .empty-hint {
+    font-size: 13px;
+    color: var(--text-muted);
+    padding: 0.5rem 0;
   }
 </style>

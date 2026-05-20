@@ -30,7 +30,6 @@
   );
   let userName = $derived(data.user?.name ?? "");
   let userEmail = $derived(data.user?.email ?? "");
-  let userImage = $derived(data.user?.image ?? null);
 </script>
 
 <svelte:window onclick={handleWindowClick} />
@@ -77,11 +76,7 @@
           <div class="user-dropdown">
             <div class="dropdown-header">
               <div class="dropdown-avatar">
-                {#if userImage}
-                  <img src={userImage} alt={userName} />
-                {:else}
-                  {userInitial}
-                {/if}
+                {userInitial}
               </div>
               <div class="dropdown-info">
                 <span class="dropdown-name">{userName}</span>
@@ -122,13 +117,12 @@
           aria-expanded={showDropdown}
         >
           <div class="user-avatar">
-            {#if userImage}
-              <img src={userImage} alt={userName} />
-            {:else}
-              {userInitial}
-            {/if}
+            {userInitial}
           </div>
-          <span class="user-name">{userName}</span>
+          <div class="user-text">
+            <span class="user-name">{userName}</span>
+            <span class="user-email">{userEmail}</span>
+          </div>
           <svg
             class="chevron"
             class:open={showDropdown}
@@ -136,7 +130,8 @@
             stroke="currentColor" stroke-width="2.5"
             stroke-linecap="round" stroke-linejoin="round"
           >
-            <polyline points="18 15 12 9 6 15"/>
+            <polyline points="4 9 12 17 20 9"/>
+            <polyline points="4 5 12 13 20 5" opacity="0.4"/>
           </svg>
         </button>
       </div>
@@ -162,7 +157,7 @@
     background: none;
     border: none;
     cursor: pointer;
-    padding: 0;
+    padding: 0.5rem 0.6rem;
     border-radius: var(--radius);
     transition: background 0.12s;
   }
@@ -199,16 +194,26 @@
     overflow: hidden;
   }
 
-  :global(.user-avatar img) {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-  }
-
   :global(.user-name) {
     font-size: 13px;
     font-weight: 500;
     color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .user-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+  }
+
+  .user-email {
+    font-size: 11px;
+    color: var(--text-muted);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
@@ -253,12 +258,6 @@
     color: var(--text-primary);
     flex-shrink: 0;
     overflow: hidden;
-  }
-
-  .dropdown-avatar img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
   }
 
   .dropdown-info {
