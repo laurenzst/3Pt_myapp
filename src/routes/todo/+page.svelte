@@ -30,9 +30,9 @@
 
   // ── Drag & Drop ──────────────────────────────────────────
   let draggedId = $state(null);
-  let dragPreview = $state(null); // ordered array of task IDs shown during drag
-  let baseOrder = []; // captured at dragstart, used as reference for all previews
-  let lastDragKey = ""; // deduplicate dragover events
+  let dragPreview = $state(null);
+  let baseOrder = [];
+  let lastDragKey = "";
 
   function computePreview(targetId, insertBefore) {
     const fromIdx = baseOrder.indexOf(draggedId);
@@ -88,7 +88,6 @@
 
     if (!fromId || !preview) return;
 
-    // Apply preview priorities to local state (no visual jump on drop)
     preview.forEach((id, i) => {
       const task = localTasks.find(t => t._id === id);
       if (task) task.priority = i + 1;
@@ -125,10 +124,9 @@
     if (task) {
       if (task.status === "done") {
         task.status = "active";
-        // restored task goes to unprioritized (no priority)
       } else {
         task.status = "done";
-        task.priority = undefined; // remove from prioritized list immediately
+        task.priority = undefined;
       }
     }
     const form = new FormData();
@@ -145,24 +143,32 @@
   }
 </script>
 
-<h1>ToDo</h1>
+<p class="page-breadcrumb">Aufgaben</p>
+<h1 class="page-title">ToDo</h1>
+<p class="page-subtitle">Verwalte und priorisiere deine Aufgaben per Drag & Drop.</p>
 
-<form method="POST" action="?/add" class="mb-3">
-  <div class="d-flex gap-2">
-    <input
-      type="text"
-      name="title"
-      placeholder="Neue Aufgabe..."
-      bind:value={title}
-      class="form-control"
-    />
-    <button type="submit" class="btn btn-primary">Hinzufügen</button>
-  </div>
+<form method="POST" action="?/add" class="add-form">
+  <input
+    type="text"
+    name="title"
+    placeholder="Neue Aufgabe hinzufügen..."
+    bind:value={title}
+    class="add-input"
+  />
+  <button type="submit" class="btn-add">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </svg>
+    Hinzufügen
+  </button>
 </form>
 
 <div class="columns">
-  <div class="column">
-    <h2>Priorisiert</h2>
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Priorisiert</h2>
+      <span class="badge">{activePrioritized.length}</span>
+    </div>
     <div class="priority-list">
       {#each activePrioritized as task, i (task._id)}
         <div class="task-row" animate:flip={{ duration: 180 }}>
@@ -185,14 +191,20 @@
           </div>
         </div>
       {/each}
+      {#if activePrioritized.length === 0}
+        <p class="empty-hint">Noch keine priorisierten Aufgaben.</p>
+      {/if}
     </div>
   </div>
 
-  <div class="column">
-    <h2>Nicht priorisiert</h2>
+  <div class="panel">
+    <div class="panel-header">
+      <h2>Nicht priorisiert</h2>
+      <span class="badge">{activeUnprioritized.length}</span>
+    </div>
     {#each activeUnprioritized as task (task._id)}
       <div class="unprioritized-card">
-        <span class="task-title">{task.title || task.task}</span>
+        <span class="task-label">{task.title || task.task}</span>
         <div class="assign-controls">
           <input
             type="number"
@@ -210,17 +222,31 @@
           >
             Priorisieren
           </button>
-          <button class="btn-delete" onclick={() => deleteTask(task._id)}>×</button>
+          <button class="btn-delete" onclick={() => deleteTask(task._id)} title="Löschen">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
         </div>
       </div>
     {/each}
+    {#if activeUnprioritized.length === 0}
+      <p class="empty-hint">Alle Aufgaben sind priorisiert.</p>
+    {/if}
   </div>
 </div>
 
 {#if completedTasks.length > 0}
   <div class="completed-section">
     <button class="toggle-completed" onclick={() => showCompleted = !showCompleted}>
-      {showCompleted ? "▾" : "▸"} Erledigt ({completedTasks.length})
+      <svg
+        width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"
+        style="transition: transform 0.15s; transform: rotate({showCompleted ? 90 : 0}deg)"
+      >
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+      Erledigt ({completedTasks.length})
     </button>
     {#if showCompleted}
       <div class="completed-list">
@@ -228,7 +254,11 @@
           <div class="completed-card">
             <input type="checkbox" checked onchange={() => toggleStatus(task._id)} class="checkbox" />
             <span class="completed-title">{task.title || task.task}</span>
-            <button class="btn-delete" onclick={() => deleteTask(task._id)}>×</button>
+            <button class="btn-delete" onclick={() => deleteTask(task._id)} title="Löschen">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
           </div>
         {/each}
       </div>
@@ -237,134 +267,274 @@
 {/if}
 
 <style>
-  .columns {
+  /* ── Add form ──────────────────────────────── */
+  .add-form {
     display: flex;
-    gap: 2em;
-    align-items: flex-start;
-  }
-  .column {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 0.5em;
-  }
-  .column h2 {
-    margin-bottom: 0.25em;
+    gap: 0.6rem;
+    margin-bottom: 1.5rem;
   }
 
-  /* Priority list with rank numbers */
+  .add-input {
+    flex: 1;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    padding: 0.55rem 0.85rem;
+    font-size: 13.5px;
+    outline: none;
+    transition: border-color 0.12s;
+  }
+
+  .add-input:focus {
+    border-color: var(--accent);
+  }
+
+  .add-input::placeholder {
+    color: var(--text-muted);
+  }
+
+  .btn-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.55rem 1rem;
+    background: var(--accent);
+    color: #0d1117;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s;
+    white-space: nowrap;
+  }
+
+  .btn-add:hover {
+    background: var(--accent-hover);
+  }
+
+  /* ── Two-column layout ─────────────────────── */
+  .columns {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+    align-items: flex-start;
+  }
+
+  .panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.1rem 1.1rem 1rem;
+  }
+
+  .panel-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .panel-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+  }
+
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 5px;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  /* ── Prioritized list ──────────────────────── */
   .priority-list {
     display: flex;
     flex-direction: column;
-    gap: 0.4em;
+    gap: 0.35rem;
   }
+
   .task-row {
     display: flex;
     align-items: center;
-    gap: 0.6em;
+    gap: 0.5rem;
   }
+
   .rank {
-    font-size: 0.8em;
-    color: #999;
-    min-width: 1.2em;
+    font-size: 11px;
+    color: var(--text-muted);
+    min-width: 1.1em;
     text-align: right;
     flex-shrink: 0;
     font-variant-numeric: tabular-nums;
   }
+
   .task-wrapper {
     flex: 1;
     min-width: 0;
   }
 
-  /* Unprioritized */
+  /* ── Unprioritized cards ───────────────────── */
   .unprioritized-card {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 0.5em;
-    border: 1px solid #555;
-    background-color: #444;
-    color: white;
-    padding: 0.5em;
+    gap: 0.5rem;
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.65rem;
+    margin-bottom: 0.35rem;
   }
-  .task-title {
-    font-weight: bold;
+
+  .task-label {
+    font-size: 13.5px;
+    font-weight: 500;
+    color: var(--text-primary);
     flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
+
   .assign-controls {
     display: flex;
-    gap: 0.5em;
+    gap: 0.4rem;
     align-items: center;
+    flex-shrink: 0;
   }
+
   .priority-input {
-    width: 5em;
-    padding: 0.25em;
-    background-color: #555;
-    color: white;
-    border: 1px solid #777;
-    border-radius: 2px;
+    width: 72px;
+    padding: 0.3rem 0.5rem;
+    background: var(--bg-main);
+    color: var(--text-primary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 12.5px;
+    outline: none;
+    transition: border-color 0.12s;
   }
+
+  .priority-input:focus {
+    border-color: var(--accent);
+  }
+
   .btn-assign {
-    padding: 0.25em 0.5em;
-    font-size: 0.8em;
-    background-color: #666;
-    color: white;
-    border: none;
+    padding: 0.3rem 0.6rem;
+    font-size: 12px;
+    font-weight: 500;
+    background: var(--bg-main);
+    color: var(--text-secondary);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     cursor: pointer;
-    border-radius: 2px;
+    white-space: nowrap;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
   }
-  .btn-assign:hover:not(:disabled) { background-color: #777; }
-  .btn-assign:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .btn-assign:hover:not(:disabled) {
+    background: var(--accent);
+    color: #0d1117;
+    border-color: var(--accent);
+  }
+
+  .btn-assign:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
 
   .btn-delete {
-    padding: 0.2em 0.45em;
-    font-size: 0.85em;
-    background-color: #7a2d2d;
-    color: white;
-    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: transparent;
+    color: var(--text-muted);
+    border: 1px solid transparent;
+    border-radius: var(--radius);
     cursor: pointer;
-    border-radius: 2px;
+    transition: background 0.12s, color 0.12s, border-color 0.12s;
+    flex-shrink: 0;
   }
-  .btn-delete:hover { background-color: #a33; }
 
-  /* Completed section */
-  .completed-section {
-    margin-top: 1.5em;
-    max-width: 600px;
+  .btn-delete:hover {
+    background: rgba(218, 54, 51, 0.15);
+    color: var(--danger);
+    border-color: rgba(218, 54, 51, 0.3);
   }
+
+  /* ── Empty hint ────────────────────────────── */
+  .empty-hint {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    padding: 0.5rem 0;
+  }
+
+  /* ── Completed section ─────────────────────── */
+  .completed-section {
+    margin-top: 1.5rem;
+  }
+
   .toggle-completed {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
     background: none;
     border: none;
-    color: #555;
+    color: var(--text-muted);
     cursor: pointer;
-    font-size: 0.95em;
+    font-size: 13px;
+    font-weight: 500;
     padding: 0;
-    margin-bottom: 0.5em;
+    margin-bottom: 0.6rem;
+    transition: color 0.12s;
   }
-  .toggle-completed:hover { color: #222; }
+
+  .toggle-completed:hover {
+    color: var(--text-secondary);
+  }
+
   .completed-list {
     display: flex;
     flex-direction: column;
-    gap: 0.5em;
+    gap: 0.35rem;
+    max-width: 560px;
   }
+
   .completed-card {
     display: flex;
     align-items: center;
-    gap: 0.5em;
-    border: 1px solid #ccc;
-    background-color: #f5f5f5;
-    color: #888;
-    padding: 0.5em;
+    gap: 0.6rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.5rem 0.65rem;
   }
+
   .checkbox {
     flex-shrink: 0;
     cursor: pointer;
-    width: 1em;
-    height: 1em;
-    accent-color: #4caf50;
+    width: 14px;
+    height: 14px;
+    accent-color: var(--accent);
   }
+
   .completed-title {
     flex: 1;
+    font-size: 13.5px;
+    color: var(--text-muted);
     text-decoration: line-through;
   }
 </style>
