@@ -2,11 +2,13 @@
   import "./styles.css";
   import { page } from '$app/state';
   import { authClient } from "$lib/auth-client.js";
-  import { goto } from "$app/navigation";
+  import { goto, invalidateAll } from "$app/navigation";
+  import { drag } from "$lib/dragState.js";
 
   let { children, data } = $props();
 
   let showDropdown = $state(false);
+  let blPanelHover = $state(false);
 
   function isActive(path) {
     if (path === '/') return page.url.pathname === '/';
@@ -28,8 +30,50 @@
   let userInitial = $derived(
     data.user?.name ? data.user.name[0].toUpperCase() : "?"
   );
-  let userName = $derived(data.user?.name ?? "");
+  let userName  = $derived(data.user?.name ?? "");
   let userEmail = $derived(data.user?.email ?? "");
+
+  const TYPE_LABELS = { story: 'S', task: 'T', bug: 'B', spike: 'R' };
+
+  // ── Backlog chip drag ─────────────────────────────────────────
+  function onBacklogChipDragStart(e, task) {
+    drag.source = "backlog";
+    drag.taskId = task._id;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", task._id);
+  }
+
+  function onBacklogChipDragEnd() {
+    drag.source = null;
+    drag.taskId = null;
+  }
+
+  // ── Backlog panel drop target (calendar task → backlog) ───────
+  function onBlPanelDragOver(e) {
+    if (drag.source !== "calendar") return;
+    e.preventDefault();
+    blPanelHover = true;
+  }
+
+  function onBlPanelDragLeave(e) {
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    blPanelHover = false;
+  }
+
+  async function onBlPanelDrop(e) {
+    e.preventDefault();
+    blPanelHover = false;
+    const taskId = drag.taskId;
+    if (!taskId || drag.source !== "calendar") return;
+    drag.source = null;
+    drag.taskId = null;
+    await fetch("/api/tasks", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "moveToBacklog", taskId, payload: {} }),
+    });
+    await invalidateAll();
+  }
 </script>
 
 <svelte:window onclick={handleWindowClick} />
@@ -62,13 +106,61 @@
           <span class="nav-section-label">Aufgaben</span>
           <a href="/todo" class="nav-item" class:active={isActive('/todo')}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="9 11 12 14 22 4"/>
-              <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>
+              <line x1="12" y1="5" x2="12" y2="19"/><line x1="4" y1="12" x2="20" y2="12"/>
             </svg>
-            ToDo
+            Aufgabe erfassen
+          </a>
+          <a href="/calendar" class="nav-item" class:active={isActive('/calendar')}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+              <line x1="16" y1="2" x2="16" y2="6"/>
+              <line x1="8" y1="2" x2="8" y2="6"/>
+              <line x1="3" y1="10" x2="21" y2="10"/>
+            </svg>
+            Kalender
           </a>
         </div>
       </nav>
+
+      <div class="sidebar-divider"></div>
+
+      <!-- Backlog panel (also a drop target for calendar → backlog) -->
+      <div
+        class="bl-panel"
+        class:bl-panel-drop={blPanelHover}
+        ondragover={onBlPanelDragOver}
+        ondragleave={onBlPanelDragLeave}
+        ondrop={onBlPanelDrop}
+        role="region"
+        aria-label="Backlog – Ablagebereich"
+      >
+        <div class="bl-head">
+          <span class="bl-title">Backlog</span>
+          <span class="bl-cnt">{data.backlogTasks?.length ?? 0}</span>
+        </div>
+        <div class="bl-items">
+          {#each data.backlogTasks ?? [] as task (task._id)}
+            <div
+              class="bl-chip"
+              draggable="true"
+              ondragstart={(e) => onBacklogChipDragStart(e, task)}
+              ondragend={onBacklogChipDragEnd}
+              title="{task.title} — auf Kalender-Tag ziehen"
+              role="listitem"
+            >
+              <span class="bl-type-badge type-{task.type ?? 'task'}">
+                {TYPE_LABELS[task.type] ?? 'T'}
+              </span>
+              <span class="bl-chip-title">{task.title}</span>
+              {#if task.sp}
+                <span class="bl-sp-pill">{task.sp}</span>
+              {/if}
+            </div>
+          {:else}
+            <p class="bl-empty">Noch leer.</p>
+          {/each}
+        </div>
+      </div>
 
       <!-- User area with dropdown -->
       <div class="sidebar-footer user-dropdown-area">
@@ -148,6 +240,139 @@
 {/if}
 
 <style>
+  /* ── Sidebar layout changes ─────────────────── */
+  :global(.sidebar) {
+    overflow: hidden !important;
+  }
+
+  :global(.sidebar-nav) {
+    flex: 0 0 auto !important;
+    overflow: visible !important;
+  }
+
+  .sidebar-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 0;
+    flex-shrink: 0;
+  }
+
+  /* ── Backlog panel ──────────────────────────── */
+  .bl-panel {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .bl-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 1rem 6px;
+    flex-shrink: 0;
+  }
+
+  .bl-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    flex: 1;
+  }
+
+  .bl-cnt {
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1px 6px;
+  }
+
+  .bl-items {
+    flex: 1;
+    overflow-y: auto;
+    padding: 4px 8px 8px;
+  }
+
+  .bl-items::-webkit-scrollbar {
+    width: 2px;
+  }
+
+  .bl-items::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 1px;
+  }
+
+  .bl-chip {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 7px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    margin-bottom: 4px;
+    cursor: grab;
+    background: var(--bg-card);
+    transition: background 0.12s;
+  }
+
+  .bl-chip:hover {
+    background: var(--bg-hover);
+  }
+
+  .bl-chip:active {
+    cursor: grabbing;
+    opacity: 0.5;
+  }
+
+  .bl-type-badge {
+    font-size: 10px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .type-story { background: #EEEDFE; color: #534AB7; }
+  .type-task  { background: #E1F5EE; color: #0F6E56; }
+  .type-bug   { background: #FCEBEB; color: #A32D2D; }
+  .type-spike { background: #FAEEDA; color: #854F0B; }
+
+  .bl-chip-title {
+    font-size: 11px;
+    color: var(--text-primary);
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
+  .bl-sp-pill {
+    font-size: 10px;
+    color: var(--text-muted);
+    background: var(--bg-hover);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+  }
+
+  .bl-panel-drop {
+    outline: 1.5px dashed var(--danger);
+    outline-offset: -3px;
+    background: rgba(218, 54, 51, 0.05);
+  }
+
+  .bl-empty {
+    font-size: 12px;
+    color: var(--text-muted);
+    padding: 4px 2px;
+  }
+
   /* ── User button ────────────────────────────── */
   .user-btn {
     display: flex;

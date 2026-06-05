@@ -126,6 +126,98 @@ async function deleteTask(taskId, userId) {
   }
 }
 
+async function getBacklogTasks(userId) {
+  try {
+    const collection = db.collection("tasks");
+    const tasks = await collection
+      .find({
+        userId,
+        $and: [
+          { $or: [{ sprint: "backlog" }, { sprint: { $exists: false } }] },
+          { $or: [{ date: { $exists: false } }, { date: null }] },
+        ],
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
+    tasks.forEach((t) => { t._id = t._id.toString(); });
+    return tasks;
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+}
+
+async function getScheduledTasks(userId) {
+  try {
+    const collection = db.collection("tasks");
+    const tasks = await collection
+      .find({ userId, date: { $exists: true, $ne: null } })
+      .toArray();
+    tasks.forEach((t) => { t._id = t._id.toString(); });
+    return tasks;
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+}
+
+async function setTaskDate(taskId, date, userId) {
+  try {
+    const collection = db.collection("tasks");
+    await collection.updateOne(
+      { _id: new ObjectId(taskId), userId },
+      { $set: { date, sprint: "calendar" } }
+    );
+  } catch (error) {
+    console.log(error.message);
+  }
+}
+
+async function setTaskCol(taskId, col, userId) {
+  try {
+    const collection = db.collection("tasks");
+    await collection.updateOne(
+      { _id: new ObjectId(taskId), userId },
+      { $set: { col } }
+    );
+  } catch (error) {
+    console.log(error.message);
+  }
+}
+
+async function moveToBacklog(taskId, userId) {
+  try {
+    const collection = db.collection("tasks");
+    await collection.updateOne(
+      { _id: new ObjectId(taskId), userId },
+      { $set: { sprint: "backlog", col: "todo" }, $unset: { date: "" } }
+    );
+  } catch (error) {
+    console.log(error.message);
+  }
+}
+
+async function createBacklogTask({ title, type, prio, sp, description, userId }) {
+  try {
+    const collection = db.collection("tasks");
+    const result = await collection.insertOne({
+      title,
+      type,
+      prio,
+      sp,
+      description: description || "",
+      sprint: "backlog",
+      col: "todo",
+      userId,
+      createdAt: new Date(),
+    });
+    return result.insertedId.toString();
+  } catch (error) {
+    console.log(error.message);
+    return null;
+  }
+}
+
 export default {
   getTasks,
   createTask,
@@ -133,4 +225,10 @@ export default {
   reorderTask,
   toggleStatus,
   deleteTask,
+  getBacklogTasks,
+  createBacklogTask,
+  getScheduledTasks,
+  setTaskDate,
+  setTaskCol,
+  moveToBacklog,
 };

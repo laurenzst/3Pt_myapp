@@ -1,4 +1,5 @@
 import { redirect } from "@sveltejs/kit";
+import db2 from "$lib/db2.js";
 
 const PUBLIC_ROUTES = ["/login", "/register"];
 
@@ -13,5 +14,10 @@ export async function load({ locals, url }) {
     redirect(302, "/");
   }
 
-  return { user };
+  let backlogTasks = [];
+  if (user) {
+    backlogTasks = await db2.getBacklogTasks(user.id);
+  }
+
+  return { user, backlogTasks };
 }
