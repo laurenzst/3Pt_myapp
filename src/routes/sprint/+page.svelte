@@ -1,6 +1,7 @@
 <script>
   import { invalidateAll } from "$app/navigation";
   import { drag } from "$lib/dragState.js";
+  import { openDrawer } from "$lib/drawerState.svelte.js";
 
   let { data } = $props();
 
@@ -33,6 +34,8 @@
   // ── Drag state ───────────────────────────────────────────────
   let draggingId    = $state(null);
   let dropActiveCol = $state(null);
+  let trashHover    = $state(false);
+  let backlogHover  = $state(false);
 
   // ── Constants ────────────────────────────────────────────────
   const TYPE_LABELS = { story: "S", task: "T", bug: "B", spike: "R" };
@@ -174,6 +177,62 @@
     drag.taskId   = null;
     draggingId    = null;
     dropActiveCol = null;
+    trashHover    = false;
+    backlogHover  = false;
+  }
+
+  // ── Drop: backlog zone ───────────────────────────────────────
+  function onBacklogZoneDragOver(e) {
+    if (drag.source !== "sprint" && drag.source !== "sprint-calendar") return;
+    e.preventDefault();
+    backlogHover = true;
+  }
+
+  function onBacklogZoneDragLeave(e) {
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    backlogHover = false;
+  }
+
+  async function onBacklogZoneDrop(e) {
+    e.preventDefault();
+    const taskId = drag.taskId;
+    const source = drag.source;
+    drag.source   = null;
+    drag.taskId   = null;
+    draggingId    = null;
+    dropActiveCol = null;
+    backlogHover  = false;
+    if (!taskId || (source !== "sprint" && source !== "sprint-calendar")) return;
+    const idx = allTasks.findIndex(t => t._id === taskId);
+    if (idx !== -1) allTasks.splice(idx, 1);
+    await api("moveToBacklog", taskId);
+  }
+
+  // ── Drop: trash zone ─────────────────────────────────────────
+  function onTrashDragOver(e) {
+    if (drag.source !== "sprint" && drag.source !== "sprint-calendar") return;
+    e.preventDefault();
+    trashHover = true;
+  }
+
+  function onTrashDragLeave(e) {
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    trashHover = false;
+  }
+
+  async function onTrashDrop(e) {
+    e.preventDefault();
+    const taskId = drag.taskId;
+    const source = drag.source;
+    drag.source   = null;
+    drag.taskId   = null;
+    draggingId    = null;
+    dropActiveCol = null;
+    trashHover    = false;
+    if (!taskId || (source !== "sprint" && source !== "sprint-calendar")) return;
+    const idx = allTasks.findIndex(t => t._id === taskId);
+    if (idx !== -1) allTasks.splice(idx, 1);
+    await api("deleteTask", taskId);
   }
 
   // ── Drop: column ─────────────────────────────────────────────
@@ -301,8 +360,11 @@
             draggable="true"
             ondragstart={(e) => onCardDragStart(e, task)}
             ondragend={onCardDragEnd}
-            role="listitem"
-            title="{task.title} — ziehen zum Verschieben; in Sidebar für Backlog"
+            onclick={() => openDrawer(task)}
+            role="button"
+            tabindex="0"
+            onkeydown={(e) => e.key === "Enter" && openDrawer(task)}
+            title="{task.title} — klicken zum Bearbeiten, ziehen zum Verschieben"
           >
             <div class="card-top">
               <span class="type-chip type-{task.type ?? 'task'}">{TYPE_LABELS[task.type ?? 'task']}</span>
@@ -328,6 +390,37 @@
     </div>
   {/each}
 </div>
+
+<!-- ── Backlog zone ── -->
+<div
+  class="action-zone backlog-zone"
+  class:zone-active={draggingId !== null}
+  class:zone-hover={backlogHover}
+  ondragover={onBacklogZoneDragOver}
+  ondragleave={onBacklogZoneDragLeave}
+  ondrop={onBacklogZoneDrop}
+  role="region"
+  aria-label="In Backlog verschieben"
+>
+  <i class="ti ti-arrow-back-up" aria-hidden="true"></i>
+  In Backlog verschieben
+</div>
+
+<!-- ── Trash zone ── -->
+<div
+  class="action-zone trash-zone"
+  class:zone-active={draggingId !== null}
+  class:zone-hover={trashHover}
+  ondragover={onTrashDragOver}
+  ondragleave={onTrashDragLeave}
+  ondrop={onTrashDrop}
+  role="region"
+  aria-label="Aufgabe löschen"
+>
+  <i class="ti ti-trash" aria-hidden="true"></i>
+  Aufgabe löschen
+</div>
+
 
 <style>
   /* ── Topbar ─────────────────────────────────── */
@@ -598,4 +691,47 @@
   .type-task  { background: #1c2028; color: #8b949e; }
   .type-bug   { background: #2d1217; color: #f85149; }
   .type-spike { background: #1e0d2e; color: #ab57ee; }
+
+  /* ── Action zones ───────────────────────────── */
+  .action-zone {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    height: 0;
+    overflow: hidden;
+    padding: 0;
+    border-radius: 8px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1.5px dashed transparent;
+    transition: height 0.15s, padding 0.15s, margin 0.15s, border-color 0.15s, background 0.15s, color 0.15s;
+    color: var(--text-muted);
+  }
+
+  .action-zone.zone-active {
+    height: 38px;
+    border-color: var(--border);
+  }
+
+  .backlog-zone.zone-active { margin-top: 10px; }
+  .trash-zone.zone-active   { margin-top: 6px; }
+
+  .trash-zone.zone-active {
+    border-color: rgba(218, 54, 51, 0.4);
+    color: rgba(218, 54, 51, 0.55);
+    background: rgba(218, 54, 51, 0.04);
+  }
+
+  .trash-zone.zone-hover {
+    border-color: var(--danger);
+    color: var(--danger);
+    background: rgba(218, 54, 51, 0.12);
+  }
+
+  .backlog-zone.zone-hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: rgba(63, 185, 80, 0.07);
+  }
 </style>

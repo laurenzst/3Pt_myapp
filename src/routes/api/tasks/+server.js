@@ -30,6 +30,9 @@ export async function PATCH({ request, locals }) {
       await db2.setTaskField(taskId, payload.field, payload.value, userId);
       break;
     }
+    case "updateTask":
+      await db2.updateTask(taskId, payload, userId);
+      break;
     default:
       throw error(400, "Unknown action");
   }

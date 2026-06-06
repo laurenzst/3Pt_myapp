@@ -1,6 +1,7 @@
 <script>
   import { invalidateAll } from "$app/navigation";
   import { drag } from "$lib/dragState.js";
+  import { openDrawer } from "$lib/drawerState.svelte.js";
 
   let { data } = $props();
 
@@ -11,8 +12,10 @@
   let visibleWeeks = $state(6);    // how many weeks to display
 
   // ── Task state (optimistic) ─────────────────────────────────
-  let tasks = $state([]);
-  $effect(() => { tasks = data.tasks.map(t => ({ ...t })); });
+  let tasks        = $state([]);
+  let sprintTasks  = $state([]);
+  $effect(() => { tasks       = data.tasks.map(t => ({ ...t })); });
+  $effect(() => { sprintTasks = data.sprintTasks.map(t => ({ ...t })); });
 
   // ── Filter ──────────────────────────────────────────────────
   let activeFilter = $state(null); // null | 'todo' | 'inprogress' | 'review' | 'done'
@@ -22,22 +25,16 @@
   let dropActiveDay = $state(null);
   let trashHover    = $state(false);
   let backlogHover  = $state(false);
+  let filterDropCol = $state(null);
 
   // ── Status config ───────────────────────────────────────────
   const COL_CYCLE  = ["todo", "inprogress", "review", "done"];
-  const COL_CONFIG = {
+  const COL_CONFIG  = {
     todo:       { label: "Todo",        dot: "#6e7681", bg: "#1c2028", color: "#8b949e", border: "#2a2f38" },
     inprogress: { label: "In Progress", dot: "#378ADD", bg: "#0c1e33", color: "#4d9fe0", border: "#1a3a5c" },
     review:     { label: "Review",      dot: "#d29922", bg: "#261c08", color: "#c89520", border: "#4a3510" },
     done:       { label: "Done",        dot: "#3fb950", bg: "#0d1e12", color: "#3a9e50", border: "#1a3d22" },
   };
-
-  async function cycleStatus(task) {
-    const cur     = task.col ?? "todo";
-    const nextCol = COL_CYCLE[(COL_CYCLE.indexOf(cur) + 1) % COL_CYCLE.length];
-    task.col = nextCol;
-    await api("setCol", task._id, { col: nextCol });
-  }
 
   // ── Calendar helpers ────────────────────────────────────────
   function toDateStr(d) {
@@ -50,6 +47,13 @@
     tmp.setUTCDate(tmp.getUTCDate() + 4 - dow);
     const ys = new Date(Date.UTC(tmp.getUTCFullYear(), 0, 1));
     return Math.ceil(((tmp - ys) / 86400000 + 1) / 7);
+  }
+
+  function isoWeekYear(d) {
+    const tmp = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    const dow = tmp.getUTCDay() || 7;
+    tmp.setUTCDate(tmp.getUTCDate() + 4 - dow);
+    return tmp.getUTCFullYear();
   }
 
   function mondayOf(d) {
@@ -71,7 +75,7 @@
     for (let w = 0; w < visibleWeeks; w++) {
       const days = [];
       for (let i = 0; i < 7; i++) days.push(addDays(cur, i));
-      result.push({ kw: isoWeek(cur), days });
+      result.push({ kw: isoWeek(cur), year: isoWeekYear(cur), days });
       cur = addDays(cur, 7);
     }
     return result;
@@ -97,6 +101,10 @@
     return tasks.filter(t => t.date === dateStr);
   }
 
+  function sprintTasksForWeek(kw, year) {
+    return sprintTasks.filter(t => t.sprintKw === kw && t.sprintYear === year);
+  }
+
   function weekSP(days) {
     return days.reduce((sum, d) =>
       sum + tasksOnDay(toDateStr(d)).reduce((s, t) => s + (t.sp || 0), 0), 0
@@ -115,13 +123,48 @@
 
   // ── Drag helpers ─────────────────────────────────────────────
   function resetDragState() {
-    drag.source = null;
-    drag.taskId = null;
+    drag.source   = null;
+    drag.taskId   = null;
     draggingId    = null;
     dropActiveDay = null;
     trashHover    = false;
     backlogHover  = false;
+    filterDropCol = null;
   }
+
+  // Drop: filter button (status change)
+  function onFilterDragOver(e, col) {
+    if (drag.source !== "calendar") return;
+    e.preventDefault();
+    filterDropCol = col;
+  }
+
+  function onFilterDragLeave(e) {
+    if (e.currentTarget.contains(e.relatedTarget)) return;
+    filterDropCol = null;
+  }
+
+  async function onFilterDrop(e, col) {
+    e.preventDefault();
+    const taskId = drag.taskId;
+    const source = drag.source;
+    resetDragState();
+    if (!taskId || source !== "calendar") return;
+    const t = tasks.find(x => x._id === taskId);
+    if (t) t.col = col;
+    await api("setCol", taskId, { col });
+  }
+
+  // Drag: unscheduled sprint chip → start
+  function onSprintChipDragStart(e, task) {
+    drag.source = "sprint-unscheduled";
+    drag.taskId = task._id;
+    draggingId  = task._id;
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", task._id);
+  }
+
+  function onSprintChipDragEnd() { resetDragState(); }
 
   // Drag: calendar pill → start
   function onCalendarDragStart(e, task) {
@@ -136,7 +179,7 @@
 
   // Drop: day cell
   function onDayCellDragOver(e, dateStr) {
-    if (drag.source !== "backlog" && drag.source !== "calendar") return;
+    if (drag.source !== "backlog" && drag.source !== "calendar" && drag.source !== "sprint-unscheduled") return;
     e.preventDefault();
     dropActiveDay = dateStr;
   }
@@ -155,13 +198,17 @@
     if (source === "calendar") {
       const t = tasks.find(x => x._id === taskId);
       if (t) t.date = dateStr;
+    } else if (source === "sprint-unscheduled") {
+      // Remove from sprint strip optimistically; server will return it as calendar task
+      const idx = sprintTasks.findIndex(t => t._id === taskId);
+      if (idx !== -1) sprintTasks.splice(idx, 1);
     }
     await api("setDate", taskId, { date: dateStr });
   }
 
   // Drop: trash zone
   function onTrashDragOver(e) {
-    if (drag.source !== "calendar") return;
+    if (drag.source !== "calendar" && drag.source !== "sprint-unscheduled") return;
     e.preventDefault();
     trashHover = true;
   }
@@ -176,15 +223,20 @@
     const taskId = drag.taskId;
     const source = drag.source;
     resetDragState();
-    if (!taskId || source !== "calendar") return;
-    const idx = tasks.findIndex(t => t._id === taskId);
-    if (idx !== -1) tasks.splice(idx, 1);
+    if (!taskId || (source !== "calendar" && source !== "sprint-unscheduled")) return;
+    if (source === "calendar") {
+      const idx = tasks.findIndex(t => t._id === taskId);
+      if (idx !== -1) tasks.splice(idx, 1);
+    } else {
+      const idx = sprintTasks.findIndex(t => t._id === taskId);
+      if (idx !== -1) sprintTasks.splice(idx, 1);
+    }
     await api("deleteTask", taskId);
   }
 
   // Drop: back-to-backlog zone
   function onBacklogZoneDragOver(e) {
-    if (drag.source !== "calendar") return;
+    if (drag.source !== "calendar" && drag.source !== "sprint-unscheduled") return;
     e.preventDefault();
     backlogHover = true;
   }
@@ -199,9 +251,14 @@
     const taskId = drag.taskId;
     const source = drag.source;
     resetDragState();
-    if (!taskId || source !== "calendar") return;
-    const idx = tasks.findIndex(t => t._id === taskId);
-    if (idx !== -1) tasks.splice(idx, 1);
+    if (!taskId || (source !== "calendar" && source !== "sprint-unscheduled")) return;
+    if (source === "calendar") {
+      const idx = tasks.findIndex(t => t._id === taskId);
+      if (idx !== -1) tasks.splice(idx, 1);
+    } else {
+      const idx = sprintTasks.findIndex(t => t._id === taskId);
+      if (idx !== -1) sprintTasks.splice(idx, 1);
+    }
     await api("moveToBacklog", taskId);
   }
 </script>
@@ -234,7 +291,7 @@
     {/each}
   </div>
 
-  <!-- Status filters -->
+  <!-- Status filters (also drop targets for status change) -->
   <div class="status-filters">
     <button
       class="filter-btn"
@@ -246,10 +303,15 @@
       <button
         class="filter-btn"
         class:filter-btn-active={activeFilter === col}
+        class:filter-is-target={drag.source === "calendar" && filterDropCol !== col}
+        class:filter-drop-active={filterDropCol === col}
         style:--fcol={cfg.color}
         style:--fbg={cfg.bg}
         style:--fborder={cfg.border}
         onclick={() => activeFilter = activeFilter === col ? null : col}
+        ondragover={(e) => onFilterDragOver(e, col)}
+        ondragleave={onFilterDragLeave}
+        ondrop={(e) => onFilterDrop(e, col)}
       >
         <span class="filter-dot" style:background={cfg.dot}></span>
         {cfg.label}
@@ -269,10 +331,35 @@
   </div>
 
   <!-- Weeks -->
-  {#each weeks as { kw, days }}
+  {#each weeks as { kw, year, days }}
     {@const sp  = weekSP(days)}
     {@const cnt = days.reduce((n, d) => n + tasksOnDay(toDateStr(d)).length, 0)}
+    {@const unscheduled = sprintTasksForWeek(kw, year)}
     <div class="week-row">
+      <!-- Sprint strip: unscheduled sprint tasks for this KW -->
+      {#if unscheduled.length > 0}
+        <div class="sprint-strip">
+          <span class="sprint-strip-label">Sprint</span>
+          {#each unscheduled as task (task._id)}
+            <div
+              class="sprint-chip"
+              draggable="true"
+              ondragstart={(e) => onSprintChipDragStart(e, task)}
+              ondragend={onSprintChipDragEnd}
+              role="button"
+              tabindex="0"
+              title="{task.title} — auf einen Tag ziehen zum Einplanen"
+            >
+              <i class="ti ti-layout-kanban" aria-hidden="true"></i>
+              <span class="sprint-chip-title">{task.title}</span>
+              {#if task.sp}
+                <span class="sprint-chip-sp">{task.sp}</span>
+              {/if}
+            </div>
+          {/each}
+        </div>
+      {/if}
+
       <div class="kw-cell">
         <span class="kw-num">{kw}</span>
         {#if cnt > 0}
@@ -320,13 +407,13 @@
                 style:--pill-color={cfg.color}
                 style:--pill-border={cfg.border}
                 draggable="true"
-                title="{task.title} [{task.type ?? 'task'}] — {cfg.label} · Klick: Status wechseln · Ziehen: verschieben"
+                title="{task.title} — Klick: bearbeiten · auf Status-Button ziehen: Status ändern"
                 ondragstart={(e) => onCalendarDragStart(e, task)}
                 ondragend={onCalendarDragEnd}
-                onclick={() => cycleStatus(task)}
+                onclick={() => openDrawer(task)}
                 role="button"
                 tabindex="0"
-                onkeydown={(e) => e.key === 'Enter' && cycleStatus(task)}
+                onkeydown={(e) => e.key === 'Enter' && openDrawer(task)}
               >
                 <span class="status-dot" style:background={cfg.dot}></span>
                 <span class="pill-title">{task.title}</span>
@@ -548,6 +635,23 @@
     font-weight: 600;
   }
 
+  /* Drop-target states */
+  .filter-btn.filter-is-target {
+    border-style: dashed;
+    border-color: var(--fborder);
+    opacity: 0.75;
+  }
+
+  .filter-btn.filter-drop-active {
+    background: var(--fbg);
+    border-color: var(--fcol);
+    border-style: dashed;
+    color: var(--fcol);
+    font-weight: 600;
+    opacity: 1;
+    transform: scale(1.05);
+  }
+
   .filter-dot {
     width: 6px;
     height: 6px;
@@ -566,7 +670,7 @@
 
   .cal-head-row {
     display: grid;
-    grid-template-columns: 52px repeat(7, 1fr);
+    grid-template-columns: 52px repeat(7, minmax(0, 1fr));
     background: var(--bg-card);
     border-bottom: 1px solid var(--border);
   }
@@ -584,7 +688,7 @@
 
   .week-row {
     display: grid;
-    grid-template-columns: 52px repeat(7, 1fr);
+    grid-template-columns: 52px repeat(7, minmax(0, 1fr));
     border-bottom: 1px solid var(--border);
   }
 
@@ -632,6 +736,7 @@
   .day-cell {
     padding: 5px 5px 6px;
     min-height: 84px;
+    min-width: 0;
     border-left: 1px solid var(--border);
     background: var(--bg-main);
     transition: background 0.1s;
@@ -739,5 +844,74 @@
     font-size: 9px;
     color: var(--text-muted);
     padding: 1px 3px;
+  }
+
+  /* ── Sprint strip ───────────────────────────── */
+  .sprint-strip {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px 8px;
+    background: rgba(63, 185, 80, 0.04);
+    border-bottom: 1px solid rgba(63, 185, 80, 0.18);
+  }
+
+  .sprint-strip-label {
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    flex-shrink: 0;
+    margin-right: 2px;
+    opacity: 0.7;
+  }
+
+  .sprint-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 7px 2px 5px;
+    background: rgba(63, 185, 80, 0.08);
+    border: 1px solid rgba(63, 185, 80, 0.22);
+    border-radius: 4px;
+    font-size: 10px;
+    color: var(--text-secondary);
+    cursor: grab;
+    user-select: none;
+    transition: background 0.1s, color 0.1s;
+    max-width: 180px;
+  }
+
+  .sprint-chip:hover {
+    background: rgba(63, 185, 80, 0.15);
+    color: var(--text-primary);
+    border-color: rgba(63, 185, 80, 0.4);
+  }
+
+  .sprint-chip:active { cursor: grabbing; }
+
+  .sprint-chip i {
+    font-size: 9px;
+    color: var(--accent);
+    opacity: 0.7;
+    flex-shrink: 0;
+  }
+
+  .sprint-chip-title {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    line-height: 1.35;
+  }
+
+  .sprint-chip-sp {
+    font-size: 9px;
+    font-weight: 600;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    padding-left: 2px;
   }
 </style>

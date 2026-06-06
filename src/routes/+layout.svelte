@@ -4,6 +4,8 @@
   import { authClient } from "$lib/auth-client.js";
   import { goto, invalidateAll } from "$app/navigation";
   import { drag } from "$lib/dragState.js";
+  import TaskDrawer from "$lib/TaskDrawer.svelte";
+  import { openDrawer } from "$lib/drawerState.svelte.js";
 
   let { children, data } = $props();
 
@@ -50,7 +52,7 @@
 
   // ── Backlog panel drop target (calendar task → backlog) ───────
   function onBlPanelDragOver(e) {
-    if (drag.source !== "calendar" && drag.source !== "sprint") return; // "sprint-calendar" intentionally excluded
+    if (!drag.source || drag.source === "backlog") return;
     e.preventDefault();
     blPanelHover = true;
   }
@@ -64,7 +66,8 @@
     e.preventDefault();
     blPanelHover = false;
     const taskId = drag.taskId;
-    if (!taskId || (drag.source !== "calendar" && drag.source !== "sprint")) return;
+    const source = drag.source;
+    if (!taskId || !source || source === "backlog") return;
     drag.source = null;
     drag.taskId = null;
     await fetch("/api/tasks", {
@@ -153,8 +156,11 @@
               draggable="true"
               ondragstart={(e) => onBacklogChipDragStart(e, task)}
               ondragend={onBacklogChipDragEnd}
-              title="{task.title} — auf Kalender-Tag ziehen"
-              role="listitem"
+              onclick={() => openDrawer(task)}
+              title="{task.title} — klicken zum Bearbeiten, ziehen zum Planen"
+              role="button"
+              tabindex="0"
+              onkeydown={(e) => e.key === "Enter" && openDrawer(task)}
             >
               <span class="bl-type-badge type-{task.type ?? 'task'}">
                 {TYPE_LABELS[task.type] ?? 'T'}
@@ -243,6 +249,7 @@
       </div>
     </main>
   </div>
+  <TaskDrawer />
 {:else}
   {@render children()}
 {/if}

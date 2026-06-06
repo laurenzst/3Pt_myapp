@@ -233,6 +233,18 @@ async function setTaskField(taskId, field, value, userId) {
   }
 }
 
+async function updateTask(taskId, { title, description, prio, sp }, userId) {
+  try {
+    const collection = db.collection("tasks");
+    await collection.updateOne(
+      { _id: new ObjectId(taskId), userId },
+      { $set: { title, description, prio, sp } }
+    );
+  } catch (error) {
+    console.log(error.message);
+  }
+}
+
 async function createBacklogTask({ title, prio, sp, description, userId }) {
   try {
     const collection = db.collection("tasks");
@@ -269,4 +281,5 @@ export default {
   getSprintTasks,
   assignToSprint,
   setTaskField,
+  updateTask,
 };
