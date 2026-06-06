@@ -12,7 +12,6 @@ export const actions = {
     if (!title) return;
     await db2.createBacklogTask({
       title,
-      type: data.get("type")?.toString() || "story",
       prio: data.get("prio")?.toString() || "medium",
       sp: parseInt(data.get("sp")?.toString() ?? "5") || 5,
       description: data.get("description")?.toString() || "",

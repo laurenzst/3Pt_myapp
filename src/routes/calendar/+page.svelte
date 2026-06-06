@@ -213,12 +213,12 @@
 <!-- ── Topbar: nav + week picker + filter ── -->
 <div class="topbar-row">
   <div class="cal-nav">
-    <button class="nav-btn" onclick={() => shiftWeek(-1)}>
+    <button class="nav-btn" aria-label="Vorherige Woche" onclick={() => shiftWeek(-1)}>
       <i class="ti ti-chevron-left" aria-hidden="true"></i>
     </button>
     <span class="cal-range-label">{rangeLabel}</span>
     <button class="nav-btn" onclick={goToday}>Heute</button>
-    <button class="nav-btn" onclick={() => shiftWeek(1)}>
+    <button class="nav-btn" aria-label="Nächste Woche" onclick={() => shiftWeek(1)}>
       <i class="ti ti-chevron-right" aria-hidden="true"></i>
     </button>
   </div>
@@ -299,6 +299,7 @@
           ondragleave={onDayCellDragLeave}
           ondrop={(e) => onDayCellDrop(e, ds)}
           role="gridcell"
+          tabindex="0"
           aria-label={ds}
         >
           <div class="day-num-row">

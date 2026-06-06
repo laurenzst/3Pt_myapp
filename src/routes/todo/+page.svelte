@@ -2,13 +2,6 @@
   import { invalidateAll } from "$app/navigation";
   import { flip } from "svelte/animate";
 
-  const TYPES = [
-    { value: "story", label: "Story", icon: "ti-book" },
-    { value: "task",  label: "Task",  icon: "ti-checkbox" },
-    { value: "bug",   label: "Bug",   icon: "ti-bug" },
-    { value: "spike", label: "Spike", icon: "ti-flask" },
-  ];
-
   const PRIOS = [
     { value: "critical", label: "Kritisch" },
     { value: "high",     label: "Hoch" },
@@ -22,7 +15,6 @@
 
   let title       = $state("");
   let description = $state("");
-  let selType     = $state("story");
   let selPrio     = $state("medium");
   let selSp       = $state(5);
   let submitting  = $state(false);
@@ -30,7 +22,7 @@
 
   let preview = $derived(
     title.trim()
-      ? `${selType} · ${PRIO_LABELS[selPrio]} · ${selSp} SP`
+      ? `${PRIO_LABELS[selPrio]} · ${selSp} SP`
       : null
   );
 
@@ -39,17 +31,15 @@
     submitting = true;
 
     const item = {
-      tempId:  Date.now(),
-      title:   title.trim(),
-      type:    selType,
-      prio:    selPrio,
-      sp:      selSp,
+      tempId: Date.now(),
+      title:  title.trim(),
+      prio:   selPrio,
+      sp:     selSp,
     };
     recentItems = [item, ...recentItems].slice(0, 5);
 
     const form = new FormData();
     form.append("title",       item.title);
-    form.append("type",        selType);
     form.append("prio",        selPrio);
     form.append("sp",          String(selSp));
     form.append("description", description);
@@ -68,7 +58,6 @@
   function reset() {
     title       = "";
     description = "";
-    selType     = "story";
     selPrio     = "medium";
     selSp       = 5;
   }
@@ -95,22 +84,6 @@
     </div>
 
     <div class="options-grid">
-      <!-- Type -->
-      <div class="opt-group">
-        <div class="opt-label">Typ</div>
-        <div class="opt-chips">
-          {#each TYPES as t}
-            <button
-              class="opt-chip type-chip type-{t.value}"
-              class:chip-sel={selType === t.value}
-              onclick={() => selType = t.value}
-            >
-              <i class="ti {t.icon}" aria-hidden="true"></i>{t.label}
-            </button>
-          {/each}
-        </div>
-      </div>
-
       <!-- Priority -->
       <div class="opt-group">
         <div class="opt-label">Priorität</div>
