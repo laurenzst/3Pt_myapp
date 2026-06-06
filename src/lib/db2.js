@@ -4,7 +4,7 @@ import { DB_URI } from "$env/static/private";
 const client = new MongoClient(DB_URI);
 
 await client.connect();
-const db = client.db("myapp"); // select database
+const db = client.db("myapp_pre"); // select database
 
 //////////////////////////////////////////
 // Tasks
