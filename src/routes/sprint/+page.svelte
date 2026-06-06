@@ -152,13 +152,18 @@
   });
 
   // ── API ──────────────────────────────────────────────────────
+  const API_OPTS = { method: "PATCH", headers: { "Content-Type": "application/json" } };
+
+  // For cross-boundary ops that need sidebar refresh (backlog ↔ sprint)
   async function api(action, taskId, payload = {}) {
-    await fetch("/api/tasks", {
-      method:  "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ action, taskId, payload }),
-    });
-    await invalidateAll();
+    await fetch("/api/tasks", { ...API_OPTS, body: JSON.stringify({ action, taskId, payload }) });
+    invalidateAll(); // intentionally not awaited — local state already updated optimistically
+  }
+
+  // For local-only ops — fire and forget, local state already reflects the change
+  function apiFire(action, taskId, payload = {}) {
+    fetch("/api/tasks", { ...API_OPTS, body: JSON.stringify({ action, taskId, payload }) })
+      .catch(err => console.error("API error:", err));
   }
 
   // ── Drag: sprint card ────────────────────────────────────────
@@ -232,7 +237,7 @@
     if (!taskId || (source !== "sprint" && source !== "sprint-calendar")) return;
     const idx = allTasks.findIndex(t => t._id === taskId);
     if (idx !== -1) allTasks.splice(idx, 1);
-    await api("deleteTask", taskId);
+    apiFire("deleteTask", taskId); // task is already gone from local state
   }
 
   // ── Drop: column ─────────────────────────────────────────────
@@ -268,7 +273,7 @@
         if (t[field] === colKey) return;
         t[field] = colKey;
       }
-      await api("setField", taskId, { field, value: colKey });
+      apiFire("setField", taskId, { field, value: colKey }); // local state already updated
     }
   }
 </script>

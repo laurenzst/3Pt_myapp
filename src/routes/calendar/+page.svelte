@@ -112,13 +112,16 @@
   }
 
   // ── API ─────────────────────────────────────────────────────
+  const API_OPTS = { method: "PATCH", headers: { "Content-Type": "application/json" } };
+
   async function api(action, taskId, payload = {}) {
-    await fetch("/api/tasks", {
-      method:  "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body:    JSON.stringify({ action, taskId, payload }),
-    });
-    await invalidateAll();
+    await fetch("/api/tasks", { ...API_OPTS, body: JSON.stringify({ action, taskId, payload }) });
+    invalidateAll(); // intentionally not awaited — local state already updated
+  }
+
+  function apiFire(action, taskId, payload = {}) {
+    fetch("/api/tasks", { ...API_OPTS, body: JSON.stringify({ action, taskId, payload }) })
+      .catch(err => console.error("API error:", err));
   }
 
   // ── Drag helpers ─────────────────────────────────────────────
@@ -152,7 +155,7 @@
     if (!taskId || source !== "calendar") return;
     const t = tasks.find(x => x._id === taskId);
     if (t) t.col = col;
-    await api("setCol", taskId, { col });
+    apiFire("setCol", taskId, { col }); // local state already updated
   }
 
   // Drag: unscheduled sprint chip → start
@@ -198,12 +201,14 @@
     if (source === "calendar") {
       const t = tasks.find(x => x._id === taskId);
       if (t) t.date = dateStr;
-    } else if (source === "sprint-unscheduled") {
-      // Remove from sprint strip optimistically; server will return it as calendar task
-      const idx = sprintTasks.findIndex(t => t._id === taskId);
-      if (idx !== -1) sprintTasks.splice(idx, 1);
+      apiFire("setDate", taskId, { date: dateStr }); // local state already updated
+    } else {
+      if (source === "sprint-unscheduled") {
+        const idx = sprintTasks.findIndex(t => t._id === taskId);
+        if (idx !== -1) sprintTasks.splice(idx, 1);
+      }
+      await api("setDate", taskId, { date: dateStr }); // cross-boundary: needs refresh
     }
-    await api("setDate", taskId, { date: dateStr });
   }
 
   // Drop: trash zone
