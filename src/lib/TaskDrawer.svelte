@@ -18,6 +18,7 @@
   let editPrio        = $state("medium");
   let editSp          = $state(5);
   let saving          = $state(false);
+  let deleting        = $state(false);
 
   // Sync fields when drawer opens with a new task
   $effect(() => {
@@ -34,6 +35,22 @@
 
   function onKeydown(e) {
     if (drawerState.open && e.key === "Escape") closeDrawer();
+  }
+
+  async function deleteTask() {
+    if (deleting) return;
+    deleting = true;
+    try {
+      await fetch("/api/tasks", {
+        method:  "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ action: "deleteTask", taskId: drawerState.task._id }),
+      });
+      closeDrawer();
+      invalidateAll();
+    } finally {
+      deleting = false;
+    }
   }
 
   async function save() {
@@ -150,14 +167,19 @@
 
     <!-- Footer -->
     <div class="drawer-footer">
-      <button class="btn-cancel" onclick={closeDrawer}>Abbrechen</button>
-      <button
-        class="btn-save"
-        onclick={save}
-        disabled={!editTitle.trim() || saving}
-      >
-        {saving ? "Speichern…" : "Speichern"}
+      <button class="btn-delete" onclick={deleteTask} disabled={deleting} aria-label="Aufgabe löschen">
+        <i class="ti ti-trash" aria-hidden="true"></i>
       </button>
+      <div class="footer-right">
+        <button class="btn-cancel" onclick={closeDrawer}>Abbrechen</button>
+        <button
+          class="btn-save"
+          onclick={save}
+          disabled={!editTitle.trim() || saving}
+        >
+          {saving ? "Speichern…" : "Speichern"}
+        </button>
+      </div>
     </div>
   </div>
 {/if}
@@ -344,11 +366,43 @@
   .drawer-footer {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
+    justify-content: space-between;
     gap: 8px;
     padding: 14px 18px;
     border-top: 1px solid var(--border);
     flex-shrink: 0;
+  }
+
+  .footer-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-delete {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    color: var(--text-muted);
+    font-size: 15px;
+    cursor: pointer;
+    transition: background 0.12s, border-color 0.12s, color 0.12s;
+  }
+
+  .btn-delete:hover:not(:disabled) {
+    background: rgba(248, 81, 73, 0.1);
+    border-color: rgba(248, 81, 73, 0.4);
+    color: #f85149;
+  }
+
+  .btn-delete:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
   }
 
   .btn-cancel {
