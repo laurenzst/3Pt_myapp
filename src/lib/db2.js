@@ -190,19 +190,54 @@ async function moveToBacklog(taskId, userId) {
     const collection = db.collection("tasks");
     await collection.updateOne(
       { _id: new ObjectId(taskId), userId },
-      { $set: { sprint: "backlog", col: "todo" }, $unset: { date: "" } }
+      { $set: { sprint: "backlog", col: "todo" }, $unset: { date: "", sprintKw: "", sprintYear: "" } }
     );
   } catch (error) {
     console.log(error.message);
   }
 }
 
-async function createBacklogTask({ title, type, prio, sp, description, userId }) {
+async function getSprintTasks(userId) {
+  try {
+    const collection = db.collection("tasks");
+    const tasks = await collection.find({ userId, sprint: "sprint" }).toArray();
+    tasks.forEach((t) => { t._id = t._id.toString(); });
+    return tasks;
+  } catch (error) {
+    console.log(error);
+    return [];
+  }
+}
+
+async function assignToSprint(taskId, kw, year, field, value, userId) {
+  try {
+    const collection = db.collection("tasks");
+    await collection.updateOne(
+      { _id: new ObjectId(taskId), userId },
+      { $set: { sprint: "sprint", sprintKw: kw, sprintYear: year, [field]: value }, $unset: { date: "" } }
+    );
+  } catch (error) {
+    console.log(error.message);
+  }
+}
+
+async function setTaskField(taskId, field, value, userId) {
+  try {
+    const collection = db.collection("tasks");
+    await collection.updateOne(
+      { _id: new ObjectId(taskId), userId },
+      { $set: { [field]: value } }
+    );
+  } catch (error) {
+    console.log(error.message);
+  }
+}
+
+async function createBacklogTask({ title, prio, sp, description, userId }) {
   try {
     const collection = db.collection("tasks");
     const result = await collection.insertOne({
       title,
-      type,
       prio,
       sp,
       description: description || "",
@@ -231,4 +266,7 @@ export default {
   setTaskDate,
   setTaskCol,
   moveToBacklog,
+  getSprintTasks,
+  assignToSprint,
+  setTaskField,
 };

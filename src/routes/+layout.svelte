@@ -50,7 +50,7 @@
 
   // ── Backlog panel drop target (calendar task → backlog) ───────
   function onBlPanelDragOver(e) {
-    if (drag.source !== "calendar") return;
+    if (drag.source !== "calendar" && drag.source !== "sprint") return; // "sprint-calendar" intentionally excluded
     e.preventDefault();
     blPanelHover = true;
   }
@@ -64,7 +64,7 @@
     e.preventDefault();
     blPanelHover = false;
     const taskId = drag.taskId;
-    if (!taskId || drag.source !== "calendar") return;
+    if (!taskId || (drag.source !== "calendar" && drag.source !== "sprint")) return;
     drag.source = null;
     drag.taskId = null;
     await fetch("/api/tasks", {
@@ -109,6 +109,14 @@
               <line x1="12" y1="5" x2="12" y2="19"/><line x1="4" y1="12" x2="20" y2="12"/>
             </svg>
             Aufgabe erfassen
+          </a>
+          <a href="/sprint" class="nav-item" class:active={isActive('/sprint')}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="5" height="18" rx="1"/>
+              <rect x="10" y="3" width="5" height="12" rx="1"/>
+              <rect x="17" y="3" width="5" height="7" rx="1"/>
+            </svg>
+            Sprint Board
           </a>
           <a href="/calendar" class="nav-item" class:active={isActive('/calendar')}>
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

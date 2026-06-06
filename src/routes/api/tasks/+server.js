@@ -21,6 +21,15 @@ export async function PATCH({ request, locals }) {
     case "deleteTask":
       await db2.deleteTask(taskId, userId);
       break;
+    case "assignToSprint":
+      await db2.assignToSprint(taskId, payload.kw, payload.year, payload.field, payload.value, userId);
+      break;
+    case "setField": {
+      const ALLOWED = ["col", "prio", "sp"];
+      if (!ALLOWED.includes(payload.field)) throw error(400, "Invalid field");
+      await db2.setTaskField(taskId, payload.field, payload.value, userId);
+      break;
+    }
     default:
       throw error(400, "Unknown action");
   }
