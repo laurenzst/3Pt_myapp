@@ -35,7 +35,6 @@
   let userName  = $derived(data.user?.name ?? "");
   let userEmail = $derived(data.user?.email ?? "");
 
-  const TYPE_LABELS = { story: 'S', task: 'T', bug: 'B', spike: 'R' };
 
   // ── Backlog chip drag ─────────────────────────────────────────
   function onBacklogChipDragStart(e, task) {
@@ -162,9 +161,6 @@
               tabindex="0"
               onkeydown={(e) => e.key === "Enter" && openDrawer(task)}
             >
-              <span class="bl-type-badge type-{task.type ?? 'task'}">
-                {TYPE_LABELS[task.type] ?? 'T'}
-              </span>
               <span class="bl-chip-title">{task.title}</span>
               {#if task.sp}
                 <span class="bl-sp-pill">{task.sp}</span>
@@ -343,19 +339,6 @@
     cursor: grabbing;
     opacity: 0.5;
   }
-
-  .bl-type-badge {
-    font-size: 10px;
-    font-weight: 600;
-    padding: 1px 5px;
-    border-radius: 4px;
-    flex-shrink: 0;
-  }
-
-  .type-story { background: #EEEDFE; color: #534AB7; }
-  .type-task  { background: #E1F5EE; color: #0F6E56; }
-  .type-bug   { background: #FCEBEB; color: #A32D2D; }
-  .type-spike { background: #FAEEDA; color: #854F0B; }
 
   .bl-chip-title {
     font-size: 11px;

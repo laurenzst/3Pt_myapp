@@ -4,10 +4,10 @@
   import { drawerState, closeDrawer } from "$lib/drawerState.svelte.js";
 
   const PRIOS = [
-    { value: "critical", label: "Kritisch", color: "#f85149", bg: "rgba(248,81,73,0.12)"  },
-    { value: "high",     label: "Hoch",     color: "#d29922", bg: "rgba(210,153,34,0.12)" },
-    { value: "medium",   label: "Mittel",   color: "#8b949e", bg: "rgba(139,148,158,0.12)"},
-    { value: "low",      label: "Niedrig",  color: "#4d9fe0", bg: "rgba(77,159,224,0.12)" },
+    { value: "critical", label: "Kritisch", color: "#f85149", bg: "rgba(248,81,73,0.12)"   },
+    { value: "high",     label: "Hoch",     color: "#f0883e", bg: "rgba(240,136,62,0.12)"  },
+    { value: "medium",   label: "Mittel",   color: "#d29922", bg: "rgba(210,153,34,0.12)"  },
+    { value: "low",      label: "Niedrig",  color: "#8b949e", bg: "rgba(139,148,158,0.12)" },
   ];
   const SP_VALUES = [1, 2, 3, 5, 8, 13];
 
@@ -296,11 +296,11 @@
   }
 
   .prio-chip {
-    padding: 5px 11px;
+    padding: 7px 12px;
     background: var(--bg-main);
     border: 1px solid var(--border);
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 13px;
     font-family: inherit;
     color: var(--text-secondary);
     cursor: pointer;
@@ -317,16 +317,17 @@
   }
 
   .sp-chip {
-    padding: 5px 10px;
+    padding: 7px 12px;
     background: var(--bg-main);
     border: 1px solid var(--border);
     border-radius: 6px;
-    font-size: 12px;
+    font-size: 13px;
+    font-weight: 500;
     font-family: inherit;
     color: var(--text-secondary);
     cursor: pointer;
     transition: all 0.12s;
-    min-width: 36px;
+    min-width: 44px;
     text-align: center;
   }
 

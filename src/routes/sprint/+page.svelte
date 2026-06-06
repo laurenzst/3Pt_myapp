@@ -38,10 +38,9 @@
   let backlogHover  = $state(false);
 
   // ── Constants ────────────────────────────────────────────────
-  const TYPE_LABELS = { story: "S", task: "T", bug: "B", spike: "R" };
-  const PRIO_COLOR  = { critical: "#f85149", high: "#d29922", medium: "#8b949e", low: "#4d9fe0" };
+  const PRIO_COLOR  = { critical: "#f85149", high: "#f0883e", medium: "#d29922", low: "#8b949e" };
   const PRIO_LABEL  = { critical: "Kritisch", high: "Hoch", medium: "Mittel", low: "Niedrig" };
-  const STATUS_DOT  = { todo: "#6e7681", inprogress: "#378ADD", review: "#d29922", done: "#3fb950" };
+  const STATUS_DOT  = { todo: "#6e7681", inprogress: "#4d9fe0", review: "#bc8cff", done: "#3fb950" };
 
   // ── View configuration ──────────────────────────────────────
   const VIEWS = {
@@ -52,7 +51,7 @@
       columns: [
         { key: "todo",       label: "Todo",        color: "#8b949e", bg: "#1c2028", border: "#2a2f38" },
         { key: "inprogress", label: "In Progress", color: "#4d9fe0", bg: "#0c1e33", border: "#1a3a5c" },
-        { key: "review",     label: "Review",      color: "#c89520", bg: "#261c08", border: "#4a3510" },
+        { key: "review",     label: "Review",      color: "#bc8cff", bg: "#1e1030", border: "#4a2880" },
         { key: "done",       label: "Done",        color: "#3a9e50", bg: "#0d1e12", border: "#1a3d22" },
       ],
     },
@@ -62,9 +61,9 @@
       defaultVal: "medium",
       columns: [
         { key: "critical", label: "Kritisch", color: "#f85149", bg: "#2d1217", border: "#5a1e1e" },
-        { key: "high",     label: "Hoch",     color: "#d29922", bg: "#261c08", border: "#4a3510" },
-        { key: "medium",   label: "Mittel",   color: "#8b949e", bg: "#1c2028", border: "#2a2f38" },
-        { key: "low",      label: "Niedrig",  color: "#4d9fe0", bg: "#0c1e33", border: "#1a3a5c" },
+        { key: "high",     label: "Hoch",     color: "#f0883e", bg: "#1e1208", border: "#4a2810" },
+        { key: "medium",   label: "Mittel",   color: "#d29922", bg: "#261c08", border: "#4a3510" },
+        { key: "low",      label: "Niedrig",  color: "#8b949e", bg: "#161b22", border: "#21262d" },
       ],
     },
     sp: {
@@ -372,14 +371,12 @@
             title="{task.title} — klicken zum Bearbeiten, ziehen zum Verschieben"
           >
             <div class="card-top">
-              <span class="type-chip type-{task.type ?? 'task'}">{TYPE_LABELS[task.type ?? 'task']}</span>
               <span class="card-title">{task.title}</span>
               {#if task.date}
                 <i class="ti ti-calendar card-cal-icon" title="Aus dem Kalender" aria-hidden="true"></i>
               {/if}
             </div>
             <div class="card-meta">
-              <span class="meta-dot" style:background={STATUS_DOT[task.col ?? 'todo']}></span>
               <span class="meta-prio" style:color={PRIO_COLOR[task.prio ?? 'medium']}>
                 {PRIO_LABEL[task.prio ?? 'medium']}
               </span>
@@ -656,13 +653,6 @@
     gap: 5px;
   }
 
-  .meta-dot {
-    width: 5px;
-    height: 5px;
-    border-radius: 50%;
-    flex-shrink: 0;
-  }
-
   .meta-prio {
     font-size: 10px;
     font-weight: 500;
@@ -682,20 +672,6 @@
     flex-shrink: 0;
   }
 
-  /* ── Type chips ─────────────────────────────── */
-  .type-chip {
-    flex-shrink: 0;
-    font-size: 9px;
-    font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 4px;
-    letter-spacing: 0.04em;
-  }
-
-  .type-story { background: #0c1e33; color: #4d9fe0; }
-  .type-task  { background: #1c2028; color: #8b949e; }
-  .type-bug   { background: #2d1217; color: #f85149; }
-  .type-spike { background: #1e0d2e; color: #ab57ee; }
 
   /* ── Action zones ───────────────────────────── */
   .action-zone {

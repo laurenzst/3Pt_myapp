@@ -4,12 +4,12 @@
   const TYPE_LABELS  = { story: "S", task: "T", bug: "B", spike: "R" };
   const DAY_SHORT    = ["So","Mo","Di","Mi","Do","Fr","Sa"];
   const MONTHS_SHORT = ["Jan","Feb","Mär","Apr","Mai","Jun","Jul","Aug","Sep","Okt","Nov","Dez"];
-  const PRIO_COLOR   = { critical: "#f85149", high: "#d29922", medium: "#8b949e", low: "#4d9fe0" };
-  const STATUS_DOT   = { todo: "#6e7681", inprogress: "#378ADD", review: "#d29922", done: "#3fb950" };
+  const PRIO_COLOR   = { critical: "#f85149", high: "#f0883e", medium: "#d29922", low: "#8b949e" };
+  const STATUS_DOT   = { todo: "#6e7681", inprogress: "#4d9fe0", review: "#bc8cff", done: "#3fb950" };
   const COL_ROWS = [
     { col: "todo",       label: "Todo",        dot: "#6e7681" },
-    { col: "inprogress", label: "In Progress", dot: "#378ADD" },
-    { col: "review",     label: "Review",      dot: "#d29922" },
+    { col: "inprogress", label: "In Progress", dot: "#4d9fe0" },
+    { col: "review",     label: "Review",      dot: "#bc8cff" },
     { col: "done",       label: "Done",        dot: "#3fb950" },
   ];
 

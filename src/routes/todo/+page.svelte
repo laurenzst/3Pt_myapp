@@ -3,10 +3,10 @@
   import { flip } from "svelte/animate";
 
   const PRIOS = [
-    { value: "critical", label: "Kritisch" },
-    { value: "high",     label: "Hoch" },
-    { value: "medium",   label: "Mittel" },
-    { value: "low",      label: "Niedrig" },
+    { value: "critical", label: "Kritisch", color: "#f85149", bg: "rgba(248,81,73,0.12)"   },
+    { value: "high",     label: "Hoch",     color: "#f0883e", bg: "rgba(240,136,62,0.12)"  },
+    { value: "medium",   label: "Mittel",   color: "#d29922", bg: "rgba(210,153,34,0.12)"  },
+    { value: "low",      label: "Niedrig",  color: "#8b949e", bg: "rgba(139,148,158,0.12)" },
   ];
 
   const SP_VALUES = [1, 2, 3, 5, 8, 13];
@@ -90,12 +90,12 @@
         <div class="opt-chips">
           {#each PRIOS as p}
             <button
-              class="opt-chip prio-chip prio-{p.value}"
+              class="opt-chip prio-chip"
               class:chip-sel={selPrio === p.value}
+              style:--pc={p.color}
+              style:--pb={p.bg}
               onclick={() => selPrio = p.value}
-            >
-              {p.label}
-            </button>
+            >{p.label}</button>
           {/each}
         </div>
       </div>
@@ -109,9 +109,7 @@
               class="opt-chip sp-chip"
               class:chip-sel={selSp === sp}
               onclick={() => selSp = sp}
-            >
-              {sp}
-            </button>
+            >{sp}</button>
           {/each}
         </div>
       </div>
@@ -154,8 +152,7 @@
         <div class="recent-item" class:recent-flash={i === 0} animate:flip={{ duration: 150 }}>
           <span class="recent-item-title">{item.title}</span>
           <div class="recent-item-meta">
-            <span class="badge type-badge type-{item.type}">{item.type}</span>
-            <span class="badge prio-badge prio-{item.prio}">{PRIO_LABELS[item.prio]}</span>
+            <span class="prio-pill prio-{item.prio}">{PRIO_LABELS[item.prio]}</span>
             <span class="sp-pill">{item.sp} SP</span>
             <span class="to-backlog">→ Backlog</span>
           </div>
@@ -224,7 +221,7 @@
   /* ── Options grid ──────────────────────────── */
   .options-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: 12px;
     margin-bottom: 14px;
   }
@@ -251,41 +248,44 @@
 
   /* Base chip style */
   .opt-chip {
-    padding: 5px 10px;
+    padding: 7px 12px;
     border: 1px solid var(--border);
-    border-radius: 20px;
-    font-size: 11px;
+    border-radius: 6px;
+    font-size: 13px;
     font-family: inherit;
     color: var(--text-secondary);
     cursor: pointer;
-    background: var(--bg-hover);
+    background: var(--bg-main);
     transition: all 0.12s;
-    display: flex;
-    align-items: center;
-    gap: 4px;
   }
 
   .opt-chip:hover {
-    border-color: var(--text-muted);
+    background: var(--bg-hover);
     color: var(--text-primary);
   }
 
-  /* Selected state overrides per type/prio */
-  .type-story.chip-sel { background: #EEEDFE; color: #534AB7; border-color: #AFA9EC; }
-  .type-task.chip-sel  { background: #E1F5EE; color: #0F6E56; border-color: #5DCAA5; }
-  .type-bug.chip-sel   { background: #FCEBEB; color: #A32D2D; border-color: #F09595; }
-  .type-spike.chip-sel { background: #FAEEDA; color: #854F0B; border-color: #EF9F27; }
+  /* Prio: selected state via CSS vars (set inline per chip) */
+  .prio-chip.chip-sel {
+    background: var(--pb);
+    border-color: var(--pc);
+    color: var(--pc);
+    font-weight: 600;
+  }
 
-  .prio-critical.chip-sel { background: #FCEBEB; color: #A32D2D; border-color: #F09595; }
-  .prio-high.chip-sel     { background: #FAEEDA; color: #854F0B; border-color: #EF9F27; }
-  .prio-medium.chip-sel   { background: #E6F1FB; color: #185FA5; border-color: #85B7EB; }
-  .prio-low.chip-sel      { background: #EAF3DE; color: #3B6D11; border-color: #97C459; }
+  /* SP: bigger, selected state matches accent */
+  .sp-chip {
+    min-width: 44px;
+    text-align: center;
+    font-size: 13px;
+    font-weight: 500;
+    padding: 7px 12px;
+  }
 
   .sp-chip.chip-sel {
-    background: var(--bg-card);
-    color: var(--text-primary);
-    border-color: var(--text-muted);
-    font-weight: 600;
+    background: rgba(63, 185, 80, 0.12);
+    border-color: var(--accent);
+    color: var(--accent);
+    font-weight: 700;
   }
 
   /* ── Description ───────────────────────────── */
@@ -451,24 +451,20 @@
     flex-shrink: 0;
   }
 
-  /* ── Badges ────────────────────────────────── */
-  .badge {
+  /* ── Recent item badges ─────────────────────── */
+  .prio-pill {
     font-size: 10px;
-    padding: 1px 5px;
-    border-radius: 7px;
-    font-weight: 500;
+    padding: 1px 6px;
+    border-radius: 5px;
+    font-weight: 600;
     white-space: nowrap;
+    border: 1px solid;
   }
 
-  .type-story { background: #EEEDFE; color: #534AB7; }
-  .type-task  { background: #E1F5EE; color: #0F6E56; }
-  .type-bug   { background: #FCEBEB; color: #A32D2D; }
-  .type-spike { background: #FAEEDA; color: #854F0B; }
-
-  .prio-critical { background: #FCEBEB; color: #A32D2D; }
-  .prio-high     { background: #FAEEDA; color: #854F0B; }
-  .prio-medium   { background: #E6F1FB; color: #185FA5; }
-  .prio-low      { background: #EAF3DE; color: #3B6D11; }
+  .prio-pill.prio-critical { background: rgba(248,81,73,0.12);   color: #f85149; border-color: rgba(248,81,73,0.3);   }
+  .prio-pill.prio-high     { background: rgba(240,136,62,0.12);  color: #f0883e; border-color: rgba(240,136,62,0.3);  }
+  .prio-pill.prio-medium   { background: rgba(210,153,34,0.12);  color: #d29922; border-color: rgba(210,153,34,0.3);  }
+  .prio-pill.prio-low      { background: rgba(139,148,158,0.12); color: #8b949e; border-color: rgba(139,148,158,0.3); }
 
   .sp-pill {
     font-size: 10px;

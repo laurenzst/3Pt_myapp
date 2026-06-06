@@ -31,8 +31,8 @@
   const COL_CYCLE  = ["todo", "inprogress", "review", "done"];
   const COL_CONFIG  = {
     todo:       { label: "Todo",        dot: "#6e7681", bg: "#1c2028", color: "#8b949e", border: "#2a2f38" },
-    inprogress: { label: "In Progress", dot: "#378ADD", bg: "#0c1e33", color: "#4d9fe0", border: "#1a3a5c" },
-    review:     { label: "Review",      dot: "#d29922", bg: "#261c08", color: "#c89520", border: "#4a3510" },
+    inprogress: { label: "In Progress", dot: "#4d9fe0", bg: "#0c1e33", color: "#4d9fe0", border: "#1a3a5c" },
+    review:     { label: "Review",      dot: "#bc8cff", bg: "#1e1030", color: "#bc8cff", border: "#4a2880" },
     done:       { label: "Done",        dot: "#3fb950", bg: "#0d1e12", color: "#3a9e50", border: "#1a3d22" },
   };
 
