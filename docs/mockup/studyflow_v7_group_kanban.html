@@ -1,0 +1,490 @@
+
+<h2 class="sr-only">StudyFlow – Sprint Board mit Kanban-Spalten nach Status, Priorität oder Story Points</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.app{display:flex;height:100vh;min-height:700px;background:var(--color-background-tertiary);font-family:var(--font-sans)}
+.sidebar{width:200px;min-width:200px;background:var(--color-background-primary);border-right:0.5px solid var(--color-border-tertiary);display:flex;flex-direction:column}
+.logo{padding:15px 14px;border-bottom:0.5px solid var(--color-border-tertiary);font-weight:500;font-size:14px;color:var(--color-text-primary);display:flex;align-items:center;gap:8px}
+.logo-dot{width:22px;height:22px;border-radius:6px;background:#4ADE80;display:flex;align-items:center;justify-content:center;color:#14532d;font-size:11px;font-weight:700;flex-shrink:0}
+.nav-item{display:flex;align-items:center;gap:7px;padding:7px 13px;font-size:12px;color:var(--color-text-secondary);cursor:pointer;transition:background .12s;border-left:2px solid transparent}
+.nav-item:hover{background:var(--color-background-secondary);color:var(--color-text-primary)}
+.nav-item.active{background:var(--color-background-secondary);color:var(--color-text-primary);font-weight:500;border-left-color:#4ADE80}
+.nav-item i{font-size:15px;flex-shrink:0}
+.nav-sec{padding:8px 0 4px}
+.nav-divider{height:0.5px;background:var(--color-border-tertiary);margin:4px 0}
+.bl-panel{flex:1;overflow:hidden;display:flex;flex-direction:column;border-top:0.5px solid var(--color-border-tertiary)}
+.bl-head{padding:10px 13px 5px;display:flex;align-items:center;gap:5px}
+.bl-title{font-size:10px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.06em;flex:1}
+.bl-cnt{font-size:10px;color:var(--color-text-tertiary);background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:8px;padding:1px 5px}
+.bl-items{flex:1;overflow-y:auto;padding:4px 8px 8px}
+.bl-items::-webkit-scrollbar{width:2px}
+.bl-items::-webkit-scrollbar-thumb{background:var(--color-border-secondary);border-radius:1px}
+.bl-chip{display:flex;align-items:center;gap:5px;padding:5px 7px;border:0.5px solid var(--color-border-tertiary);border-radius:6px;margin-bottom:4px;cursor:grab;background:var(--color-background-primary);transition:opacity .12s}
+.bl-chip:active{cursor:grabbing;opacity:.5}
+.bl-chip.dragging{opacity:.35}
+.bl-chip-title{font-size:11px;color:var(--color-text-primary);flex:1;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.badge{font-size:10px;padding:1px 5px;border-radius:7px;font-weight:500;white-space:nowrap;flex-shrink:0}
+.prio-critical{background:#FCEBEB;color:#A32D2D}
+.prio-high{background:#FAEEDA;color:#854F0B}
+.prio-medium{background:#E6F1FB;color:#185FA5}
+.prio-low{background:#EAF3DE;color:#3B6D11}
+.type-story{background:#EEEDFE;color:#534AB7}
+.type-bug{background:#FCEBEB;color:#A32D2D}
+.type-task{background:#E1F5EE;color:#0F6E56}
+.type-spike{background:#FAEEDA;color:#854F0B}
+.sp-pill{background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);color:var(--color-text-tertiary);font-size:10px;padding:1px 5px;border-radius:7px;flex-shrink:0}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden;min-width:0}
+.topbar{background:var(--color-background-primary);border-bottom:0.5px solid var(--color-border-tertiary);padding:9px 16px;display:flex;align-items:center;gap:8px;flex-shrink:0}
+.page-title{font-size:15px;font-weight:500;color:var(--color-text-primary);flex:1}
+.btn-sm{background:transparent;border:0.5px solid var(--color-border-secondary);border-radius:7px;padding:5px 10px;font-size:11px;color:var(--color-text-secondary);cursor:pointer;display:flex;align-items:center;gap:4px;transition:background .12s}
+.btn-sm:hover{background:var(--color-background-secondary)}
+.btn-green{background:#4ADE80;color:#14532d;border:none;border-radius:7px;padding:5px 12px;font-size:11px;font-weight:500;cursor:pointer;display:flex;align-items:center;gap:4px}
+.btn-green:hover{opacity:.85}
+.content{flex:1;overflow-y:auto;overflow-x:hidden}
+.hidden{display:none!important}
+
+.capture-page{padding:20px 20px 32px}
+.capture-hero{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:20px 22px 22px;margin-bottom:16px}
+.capture-title{font-size:16px;font-weight:500;color:var(--color-text-primary);margin-bottom:4px}
+.capture-sub{font-size:12px;color:var(--color-text-tertiary);margin-bottom:18px}
+.title-row{display:flex;gap:8px;margin-bottom:14px}
+.title-row input{flex:1;font-size:14px;padding:9px 12px;border:0.5px solid var(--color-border-secondary);border-radius:8px;background:var(--color-background-secondary);color:var(--color-text-primary);font-family:var(--font-sans)}
+.title-row input:focus{outline:none;border-color:#4ADE80}
+.options-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:14px}
+.opt-group{display:flex;flex-direction:column;gap:5px}
+.opt-label{font-size:10px;font-weight:500;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.06em;padding-left:2px}
+.opt-chips{display:flex;flex-wrap:wrap;gap:4px}
+.opt-chip{padding:5px 10px;border:0.5px solid var(--color-border-secondary);border-radius:20px;font-size:11px;color:var(--color-text-secondary);cursor:pointer;transition:all .12s;background:var(--color-background-secondary)}
+.opt-chip:hover{border-color:var(--color-border-primary);color:var(--color-text-primary)}
+.opt-chip.sel-story{background:#EEEDFE;color:#534AB7;border-color:#AFA9EC}
+.opt-chip.sel-bug{background:#FCEBEB;color:#A32D2D;border-color:#F09595}
+.opt-chip.sel-task{background:#E1F5EE;color:#0F6E56;border-color:#5DCAA5}
+.opt-chip.sel-spike{background:#FAEEDA;color:#854F0B;border-color:#EF9F27}
+.opt-chip.sel-critical{background:#FCEBEB;color:#A32D2D;border-color:#F09595}
+.opt-chip.sel-high{background:#FAEEDA;color:#854F0B;border-color:#EF9F27}
+.opt-chip.sel-medium{background:#E6F1FB;color:#185FA5;border-color:#85B7EB}
+.opt-chip.sel-low{background:#EAF3DE;color:#3B6D11;border-color:#97C459}
+.opt-chip.sel-sp{background:var(--color-background-secondary);color:var(--color-text-primary);border-color:var(--color-border-primary);font-weight:500}
+.desc-row textarea{width:100%;font-size:12px;padding:8px 12px;border:0.5px solid var(--color-border-secondary);border-radius:8px;background:var(--color-background-secondary);color:var(--color-text-primary);font-family:var(--font-sans);resize:none;height:56px}
+.desc-row textarea:focus{outline:none;border-color:#4ADE80}
+.capture-actions{display:flex;align-items:center;gap:8px;justify-content:flex-end}
+.preview-chip{display:flex;align-items:center;gap:5px;padding:4px 10px;border:0.5px solid var(--color-border-tertiary);border-radius:20px;font-size:11px;color:var(--color-text-secondary);background:var(--color-background-secondary);margin-right:auto}
+.recent-section{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);padding:14px 16px}
+.recent-title{font-size:12px;font-weight:500;color:var(--color-text-primary);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.recent-item{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--color-background-secondary);border-radius:7px;font-size:12px;margin-bottom:5px}
+.recent-item-title{flex:1;color:var(--color-text-primary);overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.recent-item-meta{display:flex;align-items:center;gap:5px}
+.added-flash{animation:flashIn .5s ease}
+@keyframes flashIn{from{background:#d4f7e0}to{background:var(--color-background-secondary)}}
+
+.sprint-top{display:flex;align-items:center;padding:0 16px;background:var(--color-background-primary);border-bottom:0.5px solid var(--color-border-tertiary);flex-shrink:0;gap:0}
+.sprint-tabs-bar{display:flex;gap:0;overflow-x:auto;flex:1}
+.sprint-tabs-bar::-webkit-scrollbar{height:2px}
+.s-tab{padding:9px 14px;font-size:11px;color:var(--color-text-secondary);cursor:pointer;border-bottom:2px solid transparent;white-space:nowrap;transition:all .12s}
+.s-tab.active{color:var(--color-text-primary);font-weight:500;border-bottom-color:#4ADE80}
+.s-tab:hover{color:var(--color-text-primary)}
+.sort-switcher{display:flex;gap:3px;background:var(--color-background-secondary);border-radius:8px;padding:3px;flex-shrink:0;margin-left:12px}
+.sort-btn{padding:4px 10px;border-radius:6px;font-size:11px;color:var(--color-text-secondary);cursor:pointer;transition:all .12s;display:flex;align-items:center;gap:4px;white-space:nowrap}
+.sort-btn.active{background:var(--color-background-primary);color:var(--color-text-primary);font-weight:500;border:0.5px solid var(--color-border-tertiary)}
+.sort-btn i{font-size:13px}
+
+.board-area{flex:1;overflow:hidden;display:flex}
+.board-scroll{display:flex;gap:10px;padding:12px 16px;overflow-x:auto;overflow-y:hidden;flex:1;align-items:flex-start}
+.board-scroll::-webkit-scrollbar{height:3px}
+.board-scroll::-webkit-scrollbar-thumb{background:var(--color-border-secondary);border-radius:2px}
+
+.k-col{min-width:200px;flex:0 0 200px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);display:flex;flex-direction:column;max-height:calc(100vh - 130px)}
+.k-col-head{padding:10px 12px 8px;border-bottom:0.5px solid var(--color-border-tertiary);display:flex;align-items:center;gap:6px;flex-shrink:0}
+.k-col-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0}
+.k-col-title{font-size:12px;font-weight:500;color:var(--color-text-primary);flex:1}
+.k-col-cnt{font-size:10px;color:var(--color-text-tertiary);background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:7px;padding:1px 5px}
+.k-col-sp{font-size:10px;color:var(--color-text-tertiary)}
+.k-cards{padding:7px;display:flex;flex-direction:column;gap:5px;overflow-y:auto;flex:1}
+.k-cards::-webkit-scrollbar{width:2px}
+.k-cards::-webkit-scrollbar-thumb{background:var(--color-border-secondary);border-radius:1px}
+.k-cards.drop-active{background:#EAF3DE;outline:1px dashed #4ADE80;outline-offset:-3px;border-radius:8px}
+.k-col-foot{padding:6px 7px;border-top:0.5px solid var(--color-border-tertiary);flex-shrink:0}
+.k-add-btn{width:100%;background:transparent;border:0.5px dashed var(--color-border-secondary);border-radius:6px;padding:5px;font-size:11px;color:var(--color-text-tertiary);cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:all .12s}
+.k-add-btn:hover{background:var(--color-background-primary);border-style:solid;color:var(--color-text-secondary)}
+
+.s-card{background:var(--color-background-primary);border:0.5px solid var(--color-border-tertiary);border-radius:7px;padding:7px 9px;cursor:grab;user-select:none;transition:opacity .12s}
+.s-card:active{cursor:grabbing;opacity:.5}
+.s-card.dragging{opacity:.35}
+.s-card-id{font-size:10px;color:var(--color-text-tertiary);margin-bottom:2px}
+.s-card-title{font-size:11px;color:var(--color-text-primary);line-height:1.35;margin-bottom:5px}
+.s-card-meta{display:flex;align-items:center;gap:3px;flex-wrap:wrap}
+
+.cal-nav{display:flex;align-items:center;gap:8px;padding:9px 16px;background:var(--color-background-primary);border-bottom:0.5px solid var(--color-border-tertiary);flex-shrink:0}
+.cal-nav-title{font-size:13px;font-weight:500;color:var(--color-text-primary);flex:1;text-align:center}
+.cal-scroll{flex:1;overflow-y:auto;padding:10px 16px 16px}
+.day-hdr-row{display:grid;grid-template-columns:52px repeat(7,1fr);margin-bottom:5px}
+.day-hdr-cell{font-size:10px;color:var(--color-text-tertiary);text-align:center}
+.week-row{display:grid;grid-template-columns:52px repeat(7,1fr);border-radius:var(--border-radius-lg);overflow:hidden;border:0.5px solid var(--color-border-tertiary);margin-bottom:8px}
+.kw-cell{background:var(--color-background-secondary);border-right:0.5px solid var(--color-border-tertiary);padding:7px 5px;display:flex;flex-direction:column;align-items:center;gap:1px}
+.kw-lbl{font-size:9px;color:var(--color-text-tertiary);text-transform:uppercase;letter-spacing:.04em}
+.kw-n{font-size:15px;font-weight:500;color:var(--color-text-primary)}
+.kw-sp{font-size:9px;color:var(--color-text-tertiary)}
+.kw-prog{font-size:9px;background:#EAF3DE;color:#3B6D11;border-radius:5px;padding:1px 4px;font-weight:500}
+.day-cell{background:var(--color-background-primary);border-right:0.5px solid var(--color-border-tertiary);padding:5px;min-height:72px}
+.day-cell:last-child{border-right:none}
+.day-cell.weekend{background:var(--color-background-secondary)}
+.day-cell.today-cell{background:#EAF3DE}
+.day-cell.drop-active{background:#d4f7e0;outline:1px dashed #4ADE80;outline-offset:-1px}
+.day-num-wrap{display:flex;justify-content:flex-end;margin-bottom:3px}
+.day-num{font-size:11px;color:var(--color-text-secondary)}
+.day-num.is-today{background:#4ADE80;color:#14532d;border-radius:50%;width:18px;height:18px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:500}
+.day-tasks{display:flex;flex-direction:column;gap:2px}
+.day-task-pill{font-size:10px;padding:2px 4px;border-radius:4px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.more-lbl{font-size:9px;color:var(--color-text-tertiary);padding:1px 4px}
+</style>
+
+<div class="app">
+<div class="sidebar">
+  <div class="logo"><div class="logo-dot">S</div>StudyFlow</div>
+  <div class="nav-sec">
+    <div class="nav-item active" id="nav-capture" onclick="go('capture')"><i class="ti ti-pencil-plus" aria-hidden="true"></i>Aufgabe erfassen</div>
+    <div class="nav-item" id="nav-sprint" onclick="go('sprint')"><i class="ti ti-layout-kanban" aria-hidden="true"></i>Sprint Board</div>
+    <div class="nav-item" id="nav-cal" onclick="go('cal')"><i class="ti ti-calendar-week" aria-hidden="true"></i>Kalender</div>
+  </div>
+  <div class="nav-divider"></div>
+  <div class="bl-panel">
+    <div class="bl-head"><span class="bl-title">Backlog</span><span class="bl-cnt" id="bl-cnt">0</span></div>
+    <div class="bl-items" id="bl-items"></div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="topbar">
+    <div class="page-title" id="pg-title">Aufgabe erfassen</div>
+    <div id="cal-btns" class="hidden" style="display:flex;gap:6px;align-items:center">
+      <button class="btn-sm" onclick="shiftM(-1)"><i class="ti ti-chevron-left"></i></button>
+      <button class="btn-sm" onclick="goToday()">Heute</button>
+      <button class="btn-sm" onclick="shiftM(1)"><i class="ti ti-chevron-right"></i></button>
+    </div>
+  </div>
+
+  <div class="content" id="view-capture">
+    <div class="capture-page">
+      <div class="capture-hero">
+        <div class="capture-title">Neue Aufgabe erfassen</div>
+        <div class="capture-sub">Direkt in den Backlog – von dort in den Sprint einplanen.</div>
+        <div class="title-row">
+          <input id="c-title" placeholder="Was soll gemacht werden?" oninput="updatePreview()"/>
+          <button class="btn-green" onclick="submitCapture()"><i class="ti ti-plus"></i>Hinzufügen</button>
+        </div>
+        <div class="options-grid">
+          <div class="opt-group">
+            <div class="opt-label">Typ</div>
+            <div class="opt-chips">
+              <div class="opt-chip sel-story" data-g="type" data-v="story" onclick="pick(this,'type','sel-story')"><i class="ti ti-book" aria-hidden="true"></i> Story</div>
+              <div class="opt-chip" data-g="type" data-v="task" onclick="pick(this,'type','sel-task')"><i class="ti ti-checkbox" aria-hidden="true"></i> Task</div>
+              <div class="opt-chip" data-g="type" data-v="bug" onclick="pick(this,'type','sel-bug')"><i class="ti ti-bug" aria-hidden="true"></i> Bug</div>
+              <div class="opt-chip" data-g="type" data-v="spike" onclick="pick(this,'type','sel-spike')"><i class="ti ti-flask" aria-hidden="true"></i> Spike</div>
+            </div>
+          </div>
+          <div class="opt-group">
+            <div class="opt-label">Priorität</div>
+            <div class="opt-chips">
+              <div class="opt-chip" data-g="prio" data-v="critical" onclick="pick(this,'prio','sel-critical')">Kritisch</div>
+              <div class="opt-chip" data-g="prio" data-v="high" onclick="pick(this,'prio','sel-high')">Hoch</div>
+              <div class="opt-chip sel-medium" data-g="prio" data-v="medium" onclick="pick(this,'prio','sel-medium')">Mittel</div>
+              <div class="opt-chip" data-g="prio" data-v="low" onclick="pick(this,'prio','sel-low')">Niedrig</div>
+            </div>
+          </div>
+          <div class="opt-group">
+            <div class="opt-label">Story Points</div>
+            <div class="opt-chips">
+              <div class="opt-chip" data-g="sp" data-v="1" onclick="pick(this,'sp','sel-sp')">1</div>
+              <div class="opt-chip" data-g="sp" data-v="2" onclick="pick(this,'sp','sel-sp')">2</div>
+              <div class="opt-chip" data-g="sp" data-v="3" onclick="pick(this,'sp','sel-sp')">3</div>
+              <div class="opt-chip sel-sp" data-g="sp" data-v="5" onclick="pick(this,'sp','sel-sp')">5</div>
+              <div class="opt-chip" data-g="sp" data-v="8" onclick="pick(this,'sp','sel-sp')">8</div>
+              <div class="opt-chip" data-g="sp" data-v="13" onclick="pick(this,'sp','sel-sp')">13</div>
+            </div>
+          </div>
+        </div>
+        <div style="margin-bottom:14px">
+          <div class="opt-label" style="margin-bottom:5px">Beschreibung (optional)</div>
+          <div class="desc-row"><textarea id="c-desc" placeholder="Kurze Beschreibung oder Akzeptanzkriterien..."></textarea></div>
+        </div>
+        <div class="capture-actions">
+          <div class="preview-chip" id="preview-chip" style="opacity:.4">
+            <i class="ti ti-tag" aria-hidden="true" style="font-size:12px"></i>
+            <span id="preview-text">Vorschau erscheint beim Tippen</span>
+          </div>
+          <button class="btn-sm" onclick="resetForm()"><i class="ti ti-refresh"></i>Zurücksetzen</button>
+          <button class="btn-green" onclick="submitCapture()"><i class="ti ti-arrow-down" aria-hidden="true"></i>In Backlog</button>
+        </div>
+      </div>
+      <div class="recent-section">
+        <div class="recent-title"><i class="ti ti-history" aria-hidden="true" style="font-size:14px"></i>Zuletzt hinzugefügt</div>
+        <div id="recent-list"><div style="font-size:12px;color:var(--color-text-tertiary);padding:4px 0">Noch keine Aufgaben erfasst.</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="hidden" id="view-sprint" style="display:flex;flex-direction:column;flex:1;overflow:hidden">
+    <div class="sprint-top">
+      <div class="sprint-tabs-bar" id="s-tabs"></div>
+      <div class="sort-switcher">
+        <div class="sort-btn active" id="sort-kanban" onclick="setSort('kanban')"><i class="ti ti-layout-columns" aria-hidden="true"></i>Kanban</div>
+        <div class="sort-btn" id="sort-prio" onclick="setSort('prio')"><i class="ti ti-flame" aria-hidden="true"></i>Priorität</div>
+        <div class="sort-btn" id="sort-sp" onclick="setSort('sp')"><i class="ti ti-stack-2" aria-hidden="true"></i>Story Points</div>
+      </div>
+    </div>
+    <div class="board-area"><div class="board-scroll" id="board-scroll"></div></div>
+  </div>
+
+  <div class="hidden" id="view-cal" style="display:flex;flex-direction:column;flex:1">
+    <div class="cal-nav"><div class="cal-nav-title" id="cal-title"></div></div>
+    <div class="cal-scroll" id="cal-scroll"></div>
+  </div>
+</div>
+</div>
+
+<script>
+const MONTHS=['Januar','Februar','März','April','Mai','Juni','Juli','August','September','Oktober','November','Dezember'];
+const DAYS=['Mo','Di','Mi','Do','Fr','Sa','So'];
+
+const KANBAN_COLS=[
+  {id:'todo',   title:'Todo',        dot:'#B4B2A9', sub:'Noch nicht gestartet'},
+  {id:'inprogress',title:'In Progress',dot:'#378ADD',sub:'Wird bearbeitet'},
+  {id:'review', title:'Review',      dot:'#EF9F27', sub:'Wartet auf Review'},
+  {id:'done',   title:'Done',        dot:'#639922', sub:'Abgeschlossen'},
+];
+const PRIO_COLS=[
+  {id:'critical',title:'Kritisch',dot:'#A32D2D',sub:'Sofort handeln',  headBg:'#FCEBEB',headColor:'#A32D2D'},
+  {id:'high',    title:'Hoch',    dot:'#854F0B',sub:'Bald erledigen',  headBg:'#FAEEDA',headColor:'#854F0B'},
+  {id:'medium',  title:'Mittel',  dot:'#185FA5',sub:'Regulärer Ablauf',headBg:'#E6F1FB',headColor:'#185FA5'},
+  {id:'low',     title:'Niedrig', dot:'#3B6D11',sub:'Wenn Zeit bleibt',headBg:'#EAF3DE',headColor:'#3B6D11'},
+];
+const SP_VALUES=[1,2,3,5,8,13];
+
+const now=new Date();
+let viewYear=now.getFullYear(),viewMonth=now.getMonth();
+let activeSprint=null,activeSort='kanban',dragId=null,idC=20;
+const sel={type:'story',prio:'medium',sp:'5'};
+const recentCapture=[];
+
+let tasks=[
+  {id:'SF-1',title:'User Authentication JWT',type:'story',prio:'high',sp:8,sprint:'KW23-2025',col:'done',date:'2025-06-02'},
+  {id:'SF-2',title:'Dashboard Übersicht bauen',type:'story',prio:'medium',sp:5,sprint:'KW23-2025',col:'done',date:'2025-06-03'},
+  {id:'SF-3',title:'Drag & Drop Bug beheben',type:'bug',prio:'critical',sp:3,sprint:'KW23-2025',col:'inprogress',date:'2025-06-04'},
+  {id:'SF-4',title:'Sprint Backlog Ansicht',type:'story',prio:'high',sp:8,sprint:'KW23-2025',col:'review',date:'2025-06-05'},
+  {id:'SF-5',title:'API Rate Limiting',type:'task',prio:'medium',sp:2,sprint:'KW24-2025',col:'inprogress',date:'2025-06-09'},
+  {id:'SF-6',title:'Benachrichtigungssystem',type:'story',prio:'low',sp:5,sprint:'KW24-2025',col:'todo',date:'2025-06-10'},
+  {id:'SF-7',title:'CSV Export',type:'task',prio:'low',sp:2,sprint:'KW24-2025',col:'todo',date:'2025-06-11'},
+  {id:'SF-8',title:'Performance Analyse',type:'spike',prio:'high',sp:5,sprint:'KW24-2025',col:'review',date:'2025-06-12'},
+  {id:'SF-9',title:'Login-Fehler beheben',type:'bug',prio:'critical',sp:2,sprint:'KW24-2025',col:'todo',date:'2025-06-09'},
+  {id:'SF-10',title:'Dark Mode Toggle',type:'task',prio:'low',sp:2,sprint:'backlog',col:'todo',date:null},
+  {id:'SF-11',title:'Passwort-Reset Flow',type:'story',prio:'high',sp:5,sprint:'backlog',col:'todo',date:null},
+  {id:'SF-12',title:'Mobile Responsive Layout',type:'story',prio:'high',sp:8,sprint:'backlog',col:'todo',date:null},
+];
+
+function getKW(d){const t=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate()));const day=t.getUTCDay()||7;t.setUTCDate(t.getUTCDate()+4-day);const ys=new Date(Date.UTC(t.getUTCFullYear(),0,1));return Math.ceil((((t-ys)/864e5)+1)/7)}
+function weekStart(d){const t=new Date(d);const day=t.getDay()||7;t.setDate(t.getDate()-day+1);t.setHours(0,0,0,0);return t}
+function addDays(d,n){const t=new Date(d);t.setDate(t.getDate()+n);return t}
+function fmtD(d){return d.getFullYear()+'-'+(d.getMonth()+1).toString().padStart(2,'0')+'-'+d.getDate().toString().padStart(2,'0')}
+function todayStr(){return fmtD(now)}
+function kwSid(kw,yr){return'KW'+kw+'-'+yr}
+function prioL(p){return{critical:'Kritisch',high:'Hoch',medium:'Mittel',low:'Niedrig'}[p]||p}
+
+function pick(el,group,cls){
+  document.querySelectorAll('[data-g="'+group+'"]').forEach(c=>c.className='opt-chip');
+  el.className='opt-chip '+cls; sel[group]=el.dataset.v; updatePreview();
+}
+function updatePreview(){
+  const title=document.getElementById('c-title').value.trim();
+  const pc=document.getElementById('preview-chip'),pt=document.getElementById('preview-text');
+  if(!title){pc.style.opacity='.4';pt.textContent='Vorschau erscheint beim Tippen';return}
+  pc.style.opacity='1';pt.textContent=`${sel.type} · ${prioL(sel.prio)} · ${sel.sp} SP`;
+}
+function resetForm(){
+  document.getElementById('c-title').value='';document.getElementById('c-desc').value='';
+  document.querySelectorAll('[data-g]').forEach(c=>c.className='opt-chip');
+  document.querySelector('[data-g="type"][data-v="story"]').className='opt-chip sel-story';
+  document.querySelector('[data-g="prio"][data-v="medium"]').className='opt-chip sel-medium';
+  document.querySelector('[data-g="sp"][data-v="5"]').className='opt-chip sel-sp';
+  sel.type='story';sel.prio='medium';sel.sp='5'; updatePreview();
+}
+function submitCapture(){
+  const title=document.getElementById('c-title').value.trim(); if(!title)return;
+  idC++;
+  const t={id:'SF-'+idC,title,type:sel.type,prio:sel.prio,sp:parseInt(sel.sp),sprint:'backlog',col:'todo',date:null};
+  tasks.push(t);recentCapture.unshift(t);if(recentCapture.length>5)recentCapture.pop();
+  document.getElementById('c-title').value='';document.getElementById('c-desc').value='';
+  updatePreview();renderBacklog();renderRecent();
+}
+function renderRecent(){
+  const el=document.getElementById('recent-list');
+  if(!recentCapture.length){el.innerHTML='<div style="font-size:12px;color:var(--color-text-tertiary);padding:4px 0">Noch keine Aufgaben erfasst.</div>';return}
+  el.innerHTML='';
+  recentCapture.forEach((t,i)=>{
+    const row=document.createElement('div');row.className='recent-item'+(i===0?' added-flash':'');
+    row.innerHTML=`<span class="recent-item-title">${t.title}</span><div class="recent-item-meta"><span class="badge type-${t.type}">${t.type}</span><span class="badge prio-${t.prio}">${prioL(t.prio)}</span><span class="sp-pill">${t.sp} SP</span><span style="font-size:10px;color:var(--color-text-tertiary)">→ Backlog</span></div>`;
+    el.appendChild(row);
+  });
+}
+function renderBacklog(){
+  const bl=tasks.filter(t=>t.sprint==='backlog');
+  document.getElementById('bl-cnt').textContent=bl.length;
+  const list=document.getElementById('bl-items');list.innerHTML='';
+  bl.forEach(t=>{
+    const el=document.createElement('div');el.className='bl-chip';el.draggable=true;el.dataset.id=t.id;
+    el.innerHTML=`<span class="badge type-${t.type}" style="flex-shrink:0">${t.type[0].toUpperCase()}</span><span class="bl-chip-title">${t.title}</span><span class="sp-pill">${t.sp}</span>`;
+    el.addEventListener('dragstart',e=>{dragId=t.id;el.classList.add('dragging');e.dataTransfer.effectAllowed='move'});
+    el.addEventListener('dragend',()=>el.classList.remove('dragging'));
+    list.appendChild(el);
+  });
+}
+
+function makeCard(t){
+  const el=document.createElement('div');el.className='s-card';el.draggable=true;el.dataset.id=t.id;
+  el.innerHTML=`<div class="s-card-id">${t.id}</div><div class="s-card-title">${t.title}</div><div class="s-card-meta"><span class="badge type-${t.type}">${t.type}</span><span class="badge prio-${t.prio}">${prioL(t.prio)}</span><span class="sp-pill">${t.sp}</span></div>`;
+  el.addEventListener('dragstart',e=>{dragId=t.id;el.classList.add('dragging');e.dataTransfer.effectAllowed='move'});
+  el.addEventListener('dragend',()=>el.classList.remove('dragging'));
+  return el;
+}
+
+function buildCol(colDef,cardItems,onDrop,headBg,headColor){
+  const colEl=document.createElement('div');colEl.className='k-col';
+
+  const head=document.createElement('div');head.className='k-col-head';
+  if(headBg)head.style.cssText=`background:${headBg};border-radius:var(--border-radius-lg) var(--border-radius-lg) 0 0`;
+  const dotColor=headColor||colDef.dot;
+  const titleColor=headColor?headColor:'var(--color-text-primary)';
+  const totalSP=cardItems.reduce((a,c)=>a+c.sp,0);
+  head.innerHTML=`<div class="k-col-dot" style="background:${dotColor}"></div><div class="k-col-title" style="color:${titleColor}">${colDef.title}</div><div class="k-col-cnt">${cardItems.length}</div><div class="k-col-sp">${totalSP} SP</div>`;
+  colEl.appendChild(head);
+
+  const cards=document.createElement('div');cards.className='k-cards';
+  cardItems.forEach(t=>cards.appendChild(makeCard(t)));
+  cards.addEventListener('dragover',e=>{e.preventDefault();cards.classList.add('drop-active')});
+  cards.addEventListener('dragleave',()=>cards.classList.remove('drop-active'));
+  cards.addEventListener('drop',e=>{e.preventDefault();cards.classList.remove('drop-active');onDrop(colDef.id)});
+  colEl.appendChild(cards);
+
+  const foot=document.createElement('div');foot.className='k-col-foot';
+  foot.innerHTML=`<button class="k-add-btn"><i class="ti ti-plus" aria-hidden="true"></i>Hinzufügen</button>`;
+  colEl.appendChild(foot);
+  return colEl;
+}
+
+function renderBoard(){
+  const scroll=document.getElementById('board-scroll');scroll.innerHTML='';
+  const spTasks=tasks.filter(t=>t.sprint===activeSprint);
+
+  if(activeSort==='kanban'){
+    KANBAN_COLS.forEach(col=>{
+      const items=spTasks.filter(t=>t.col===col.id);
+      scroll.appendChild(buildCol(col,items,colId=>{
+        if(!dragId)return;
+        const t=tasks.find(x=>x.id===dragId);
+        if(t){t.col=colId;t.sprint=activeSprint}
+        dragId=null;renderSprintView();renderBacklog();
+      }));
+    });
+
+  } else if(activeSort==='prio'){
+    PRIO_COLS.forEach(col=>{
+      const items=spTasks.filter(t=>t.prio===col.id);
+      scroll.appendChild(buildCol(col,items,colId=>{
+        if(!dragId)return;
+        const t=tasks.find(x=>x.id===dragId);
+        if(t){t.prio=colId;t.sprint=activeSprint}
+        dragId=null;renderSprintView();renderBacklog();
+      },col.headBg,col.headColor));
+    });
+
+  } else {
+    const presentSP=[...new Set([...SP_VALUES,...spTasks.map(t=>t.sp)])].sort((a,b)=>a-b);
+    presentSP.forEach(spVal=>{
+      const colDef={id:spVal,title:`${spVal} SP`,dot:'#888780',sub:`${spVal} Story Points`};
+      const items=spTasks.filter(t=>t.sp===spVal);
+      scroll.appendChild(buildCol(colDef,items,colId=>{
+        if(!dragId)return;
+        const t=tasks.find(x=>x.id===dragId);
+        if(t){t.sp=colId;t.sprint=activeSprint}
+        dragId=null;renderSprintView();renderBacklog();
+      }));
+    });
+  }
+}
+
+function renderSprintView(){
+  const sids=[...new Set(tasks.filter(t=>t.sprint!=='backlog').map(t=>t.sprint))].sort();
+  if(!activeSprint||!sids.includes(activeSprint))activeSprint=sids[sids.length-1]||null;
+  const tabs=document.getElementById('s-tabs');tabs.innerHTML='';
+  sids.forEach(s=>{
+    const sp=tasks.filter(t=>t.sprint===s);
+    const done=sp.filter(t=>t.col==='done').reduce((a,c)=>a+c.sp,0);
+    const total=sp.reduce((a,c)=>a+c.sp,0);
+    const el=document.createElement('div');el.className='s-tab'+(s===activeSprint?' active':'');
+    el.textContent=s+(total?` · ${done}/${total} SP`:'');
+    el.onclick=()=>{activeSprint=s;renderSprintView()};
+    tabs.appendChild(el);
+  });
+  renderBoard();
+}
+
+function setSort(s){
+  activeSort=s;
+  ['kanban','prio','sp'].forEach(x=>document.getElementById('sort-'+x).classList.toggle('active',x===s));
+  renderBoard();
+}
+
+function renderCal(){
+  document.getElementById('cal-title').textContent=MONTHS[viewMonth]+' '+viewYear;
+  const scroll=document.getElementById('cal-scroll');scroll.innerHTML='';
+  const hdr=document.createElement('div');hdr.className='day-hdr-row';
+  hdr.innerHTML='<div class="day-hdr-cell"></div>'+DAYS.map(d=>`<div class="day-hdr-cell">${d}</div>`).join('');
+  scroll.appendChild(hdr);
+  const first=new Date(viewYear,viewMonth,1),last=new Date(viewYear,viewMonth+1,0);
+  let cur=weekStart(first);
+  while(cur<=last){
+    const kw=getKW(cur),yr=cur.getFullYear(),spId=kwSid(kw,yr);
+    const spT=tasks.filter(t=>t.sprint===spId);
+    const total=spT.reduce((a,c)=>a+c.sp,0),done=spT.filter(t=>t.col==='done').reduce((a,c)=>a+c.sp,0);
+    const row=document.createElement('div');row.className='week-row';
+    const kwc=document.createElement('div');kwc.className='kw-cell';
+    kwc.innerHTML=`<span class="kw-lbl">KW</span><span class="kw-n">${kw}</span>${total?`<span class="kw-sp">${total} SP</span><span class="kw-prog">${done}/${total}</span>`:'<span class="kw-sp">leer</span>'}`;
+    row.appendChild(kwc);
+    for(let i=0;i<7;i++){
+      const day=addDays(cur,i),ds=fmtD(day);
+      const isToday=ds===todayStr(),isWE=i>=5,inMonth=day.getMonth()===viewMonth;
+      const dt=tasks.filter(t=>t.date===ds&&t.sprint!=='backlog');
+      const cell=document.createElement('div');
+      cell.className='day-cell'+(isWE?' weekend':'')+(isToday?' today-cell':'');
+      if(!inMonth)cell.style.opacity='.4';
+      cell.innerHTML=`<div class="day-num-wrap"><span class="day-num${isToday?' is-today':''}">${day.getDate()}</span></div><div class="day-tasks">${dt.slice(0,2).map(t=>`<div class="day-task-pill type-${t.type}">${t.title}</div>`).join('')}${dt.length>2?`<div class="more-lbl">+${dt.length-2}</div>`:''}</div>`;
+      cell.addEventListener('dragover',e=>{e.preventDefault();cell.classList.add('drop-active')});
+      cell.addEventListener('dragleave',()=>cell.classList.remove('drop-active'));
+      cell.addEventListener('drop',e=>{
+        e.preventDefault();cell.classList.remove('drop-active');
+        if(!dragId)return;
+        const t=tasks.find(x=>x.id===dragId);
+        if(t){t.date=ds;t.sprint=spId}
+        dragId=null;renderCal();renderBacklog();
+      });
+      row.appendChild(cell);
+    }
+    scroll.appendChild(row);cur=addDays(cur,7);
+  }
+}
+function shiftM(n){viewMonth+=n;if(viewMonth>11){viewMonth=0;viewYear++}if(viewMonth<0){viewMonth=11;viewYear--}renderCal()}
+function goToday(){viewMonth=now.getMonth();viewYear=now.getFullYear();renderCal()}
+
+function go(v){
+  ['capture','sprint','cal'].forEach(x=>{
+    const el=document.getElementById('view-'+x);
+    el.classList.toggle('hidden',x!==v);
+    if(x!==v)el.style.display='';
+    document.getElementById('nav-'+x).classList.toggle('active',x===v);
+  });
+  document.getElementById('pg-title').textContent={capture:'Aufgabe erfassen',sprint:'Sprint Board',cal:'Kalender'}[v];
+  document.getElementById('cal-btns').classList.toggle('hidden',v!=='cal');
+  if(v==='sprint'){document.getElementById('view-sprint').style.display='flex';renderSprintView()}
+  if(v==='cal'){document.getElementById('view-cal').style.display='flex';renderCal()}
+}
+renderBacklog();
+</script>
